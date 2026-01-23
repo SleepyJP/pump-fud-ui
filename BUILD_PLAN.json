@@ -1,0 +1,177 @@
+{
+  "build_id": "PUMPFUD-ENHANCE-001",
+  "timestamp": "2025-01-22",
+  "execution_order": ["F3", "F1", "F2", "F6", "F4", "F5", "F7"],
+  
+  "features": {
+    "F3": {
+      "name": "FIX_UNLOCK_LOCK_SYSTEM",
+      "status": "VERIFY_AND_FIX",
+      "priority": 1,
+      "issue": "Components not moving when dragged - SleepyJ confirmed broken",
+      "files": [
+        "src/components/dashboard/DashboardGrid.tsx",
+        "src/components/dashboard/PanelWrapper.tsx",
+        "src/stores/dashboardStore.ts"
+      ],
+      "ralph_loops": [
+        {"id": "RL-F3-A", "test": "Unlock button toggles isLocked state", "pass": false},
+        {"id": "RL-F3-B", "test": "Panels ACTUALLY MOVE when dragged", "pass": false},
+        {"id": "RL-F3-C", "test": "Resize works all 8 directions", "pass": false},
+        {"id": "RL-F3-D", "test": "Layout persists after refresh", "pass": false}
+      ]
+    },
+    
+    "F1": {
+      "name": "UNIVERSAL_CARD_SKIN_SYSTEM",
+      "status": "PENDING",
+      "priority": 2,
+      "requirements": [
+        "Any card (SwapperCard, FarmCard, TokenCard, etc) can have custom skins",
+        "Upload image from files OR paste URL",
+        "Mouse drag to resize/position image within card",
+        "Auto-crop/fit to card bounds",
+        "Per-card-type skin storage in settings",
+        "Pattern library: wood grain, carbon fiber, gradients, custom"
+      ],
+      "files_to_create": [
+        "src/components/ui/CardSkinEditor.tsx",
+        "src/hooks/useCardSkin.ts"
+      ],
+      "files_to_modify": [
+        "src/stores/siteSettingsStore.ts",
+        "src/app/settings/page.tsx",
+        "src/components/token/TokenCard.tsx"
+      ],
+      "ralph_loops": [
+        {"id": "RL-F1-A", "test": "Can upload image to card skin", "pass": false},
+        {"id": "RL-F1-B", "test": "Image resize/crop works with mouse", "pass": false},
+        {"id": "RL-F1-C", "test": "Skin persists to localStorage", "pass": false},
+        {"id": "RL-F1-D", "test": "Skin applies to all card types", "pass": false}
+      ]
+    },
+    
+    "F2": {
+      "name": "ADJUSTABLE_HEADER",
+      "status": "PENDING",
+      "priority": 3,
+      "requirements": [
+        "Header height slider in settings (0.5 inch to 3 inches / 32px to 192px)",
+        "Custom logo upload to replace PUMP.FUD text/icon",
+        "Logo positioning (left, center, right)",
+        "Header background customization",
+        "Persists to localStorage"
+      ],
+      "files_to_modify": [
+        "src/components/layout/Header.tsx",
+        "src/stores/siteSettingsStore.ts",
+        "src/app/settings/page.tsx"
+      ],
+      "ralph_loops": [
+        {"id": "RL-F2-A", "test": "Header height changes with slider", "pass": false},
+        {"id": "RL-F2-B", "test": "Custom logo upload replaces default", "pass": false},
+        {"id": "RL-F2-C", "test": "Settings persist on refresh", "pass": false}
+      ]
+    },
+    
+    "F6": {
+      "name": "DELETE_TOKENS_ADMIN",
+      "status": "PENDING",
+      "priority": 4,
+      "requirements": [
+        "Token management section in admin settings",
+        "List all tokens",
+        "Delete button per token with confirmation modal",
+        "Admin wallet check before delete"
+      ],
+      "files_to_create": [
+        "src/components/settings/TokenManager.tsx"
+      ],
+      "files_to_modify": [
+        "src/app/settings/page.tsx"
+      ],
+      "ralph_loops": [
+        {"id": "RL-F6-A", "test": "Token list shows in settings", "pass": false},
+        {"id": "RL-F6-B", "test": "Delete removes token from list", "pass": false},
+        {"id": "RL-F6-C", "test": "Only admin can delete", "pass": false}
+      ]
+    },
+    
+    "F4": {
+      "name": "LANDING_PAGE",
+      "status": "PENDING",
+      "priority": 5,
+      "requirements": [
+        "Hero section with animated background",
+        "Feature highlights grid",
+        "Connect Wallet CTA",
+        "Live stats (tokens launched, volume, users)",
+        "Responsive design"
+      ],
+      "files_to_create": [
+        "src/components/landing/Hero.tsx",
+        "src/components/landing/Features.tsx",
+        "src/components/landing/Stats.tsx"
+      ],
+      "files_to_modify": [
+        "src/app/page.tsx"
+      ],
+      "ralph_loops": [
+        {"id": "RL-F4-A", "test": "Landing page renders at /", "pass": false},
+        {"id": "RL-F4-B", "test": "Connect wallet CTA works", "pass": false},
+        {"id": "RL-F4-C", "test": "Stats display", "pass": false}
+      ]
+    },
+    
+    "F5": {
+      "name": "PROFILE_PAGE",
+      "status": "PENDING",
+      "priority": 6,
+      "requirements": [
+        "User wallet display",
+        "Token holdings list",
+        "Transaction history",
+        "Created tokens list",
+        "Same drag/lock system as dashboard"
+      ],
+      "files_to_create": [
+        "src/app/profile/page.tsx",
+        "src/components/profile/Holdings.tsx",
+        "src/components/profile/Activity.tsx"
+      ],
+      "ralph_loops": [
+        {"id": "RL-F5-A", "test": "Profile page renders at /profile", "pass": false},
+        {"id": "RL-F5-B", "test": "Holdings display", "pass": false},
+        {"id": "RL-F5-C", "test": "Drag/lock works on profile", "pass": false}
+      ]
+    },
+    
+    "F7": {
+      "name": "RISING_NEW_GRADUATED_PAGES",
+      "status": "PENDING",
+      "priority": 7,
+      "requirements": [
+        "/rising - Tokens sorted by momentum/gains",
+        "/new - Recently created tokens",
+        "/graduated - Tokens that hit bonding curve cap",
+        "Same drag/lock panel system",
+        "Same skin customization"
+      ],
+      "files_to_create": [
+        "src/app/rising/page.tsx",
+        "src/app/new/page.tsx",
+        "src/app/graduated/page.tsx",
+        "src/components/shared/TokenListPage.tsx"
+      ],
+      "ralph_loops": [
+        {"id": "RL-F7-A", "test": "Rising page filters correctly", "pass": false},
+        {"id": "RL-F7-B", "test": "New page shows recent tokens", "pass": false},
+        {"id": "RL-F7-C", "test": "Graduated page filters bonded", "pass": false}
+      ]
+    }
+  },
+  
+  "admin_wallet": "0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B",
+  "current_feature": null,
+  "build_started": false
+}

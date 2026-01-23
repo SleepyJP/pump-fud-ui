@@ -1,26 +1,346 @@
 @import "tailwindcss";
 
+@theme {
+  /* Colors */
+  --color-fud-green: #00ff88;
+  --color-fud-green-bright: #00FF41;
+  --color-fud-green-neon: #39FF14;
+  --color-fud-green-dark: #00CC00;
+  --color-fud-pink: #FF00FF;
+  --color-fud-purple: #8b5cf6;
+  --color-fud-red: #ef4444;
+  --color-fud-orange: #f97316;
+
+  --color-dark-bg: #0a0a0a;
+  --color-dark-secondary: #141414;
+  --color-dark-tertiary: #1f1f1f;
+  --color-dark-card: #0d0d0d;
+
+  --color-border-primary: #333333;
+  --color-border-glow: rgba(0, 255, 136, 0.3);
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #e5e7eb;
+  --color-text-muted: #9ca3af;
+
+  /* Fonts */
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Orbitron', sans-serif;
+
+  /* Animations */
+  --animate-neon-pulse: neonPulse 2s ease-in-out infinite;
+  --animate-glow: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes neonPulse {
+  0%, 100% { box-shadow: 0 0 5px #00ff88, 0 0 10px #00ff88, 0 0 20px #00ff88; }
+  50% { box-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 40px #00ff88; }
+}
+
+@keyframes glow {
+  0% { text-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88; }
+  100% { text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88, 0 0 60px #00ff88; }
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Orbitron', sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
+  background-attachment: fixed;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00FF00;
+}
+
+/* Selection */
+::selection {
+  background: rgba(0, 255, 0, 0.3);
+  color: #00FF00;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid #00FF00;
+  outline-offset: 2px;
+}
+
+/* Neon text glow */
+.text-glow {
+  text-shadow: 0 0 10px #00FF00, 0 0 20px #00FF00, 0 0 40px #00FF00;
+}
+
+/* Grid background pattern */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 255, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 0, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Scanline effect */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    transparent 50%,
+    rgba(0, 0, 0, 0.05) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+/* Number input arrows removal */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* RainbowKit customization */
+[data-rk] {
+  --rk-colors-accentColor: #00FF00;
+  --rk-colors-accentColorForeground: #000000;
+}
+
+/* ============================================
+   REACT-GRID-LAYOUT STYLES
+   ============================================ */
+
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+
+.react-grid-item img {
+  pointer-events: none;
+  user-select: none;
+}
+
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+
+.react-grid-item.resizing {
+  transition: none;
+  z-index: 1;
+  will-change: width, height;
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 3;
+  will-change: transform;
+}
+
+.react-grid-item.dropping {
+  visibility: hidden;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: rgba(0, 255, 136, 0.2);
+  border: 2px dashed #00ff88;
+  border-radius: 12px;
+  opacity: 1;
+  transition-duration: 100ms;
+  z-index: 2;
+  user-select: none;
+}
+
+/* Resize handles */
+.react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+}
+
+.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(0, 255, 136, 0.5);
+  border-bottom: 2px solid rgba(0, 255, 136, 0.5);
+}
+
+.react-resizable-handle-sw {
+  bottom: 0;
+  left: 0;
+  cursor: sw-resize;
+  transform: rotate(90deg);
+}
+
+.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+
+.react-resizable-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nw-resize;
+  transform: rotate(180deg);
+}
+
+.react-resizable-handle-ne {
+  top: 0;
+  right: 0;
+  cursor: ne-resize;
+  transform: rotate(270deg);
+}
+
+.react-resizable-handle-w,
+.react-resizable-handle-e {
+  top: 50%;
+  margin-top: -10px;
+  cursor: ew-resize;
+}
+
+.react-resizable-handle-w {
+  left: 0;
+  transform: rotate(135deg);
+}
+
+.react-resizable-handle-e {
+  right: 0;
+  transform: rotate(315deg);
+}
+
+.react-resizable-handle-n,
+.react-resizable-handle-s {
+  left: 50%;
+  margin-left: -10px;
+  cursor: ns-resize;
+}
+
+.react-resizable-handle-n {
+  top: 0;
+  transform: rotate(225deg);
+}
+
+.react-resizable-handle-s {
+  bottom: 0;
+  transform: rotate(45deg);
+}
+
+/* Unlocked state visual feedback */
+.react-grid-item:not(.react-grid-placeholder) {
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+.react-grid-item.react-draggable-dragging:not(.react-grid-placeholder) {
+  box-shadow: 0 0 30px rgba(0, 255, 136, 0.4), 0 20px 40px rgba(0, 0, 0, 0.5);
+  transform: scale(1.02);
+}
+
+.react-grid-item.resizing:not(.react-grid-placeholder) {
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+}
+
+/* Panel drag handle styling */
+.panel-drag-handle {
+  cursor: grab;
+}
+
+.panel-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Color picker styling */
+input[type='color'] {
+  -webkit-appearance: none;
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 0;
+  cursor: pointer;
+}
+
+input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+input[type='color']::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+/* Range slider styling */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #222;
+  border-radius: 3px;
+  outline: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #00ff88;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+  transition: transform 150ms ease;
+}
+
+input[type='range']::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #00ff88;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
 }
