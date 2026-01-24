@@ -58,11 +58,11 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
     setIsLoading(true);
     try {
-      const buyEvent = parseAbiItem('event Buy(address indexed buyer, uint256 plsIn, uint256 tokensOut, uint256 newPrice)');
-      const sellEvent = parseAbiItem('event Sell(address indexed seller, uint256 tokensIn, uint256 plsOut, uint256 newPrice)');
+      const buyEvent = parseAbiItem('event TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address referrer)');
+      const sellEvent = parseAbiItem('event TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)');
 
       const currentBlock = await publicClient.getBlockNumber();
-      const fromBlock = currentBlock - BigInt(50000); // ~3 days of blocks
+      const fromBlock = currentBlock - BigInt(50000);
 
       const [buyLogs, sellLogs] = await Promise.all([
         publicClient.getLogs({
@@ -79,7 +79,6 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         }),
       ]);
 
-      // Get block timestamps
       const blockNumbers = [...new Set([...buyLogs, ...sellLogs].map((l) => l.blockNumber))];
       const blockTimestamps: Record<string, number> = {};
 
@@ -95,32 +94,53 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       );
 
       const tradeData: TradeData[] = [];
+      let runningPlsReserve = BigInt(0);
+      let runningTokenSupply = BigInt(800_000_000) * BigInt(10 ** 18);
 
-      for (const log of buyLogs) {
-        const args = log.args as { plsIn: bigint; tokensOut: bigint; newPrice: bigint };
-        if (args.newPrice) {
-          tradeData.push({
-            timestamp: blockTimestamps[log.blockNumber.toString()] || Math.floor(Date.now() / 1000),
-            price: Number(formatUnits(args.newPrice, 18)),
-            volume: Number(formatUnits(args.plsIn, 18)),
-            isBuy: true,
-          });
+      const allLogs = [
+        ...buyLogs.map(l => ({ ...l, type: 'buy' as const })),
+        ...sellLogs.map(l => ({ ...l, type: 'sell' as const })),
+      ].sort((a, b) => {
+        if (a.blockNumber !== b.blockNumber) return Number(a.blockNumber - b.blockNumber);
+        return Number(a.logIndex - b.logIndex);
+      });
+
+      for (const log of allLogs) {
+        const timestamp = blockTimestamps[log.blockNumber.toString()] || Math.floor(Date.now() / 1000);
+
+        if (log.type === 'buy') {
+          const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint };
+          if (args.plsSpent && args.tokensBought) {
+            runningPlsReserve += args.plsSpent;
+            runningTokenSupply -= args.tokensBought;
+            const price = runningTokenSupply > BigInt(0)
+              ? Number(formatUnits(runningPlsReserve * BigInt(10 ** 18) / runningTokenSupply, 18))
+              : 0;
+            tradeData.push({
+              timestamp,
+              price: price > 0 ? price : Number(formatUnits(args.plsSpent, 18)) / Number(formatUnits(args.tokensBought, 18)),
+              volume: Number(formatUnits(args.plsSpent, 18)),
+              isBuy: true,
+            });
+          }
+        } else {
+          const args = log.args as { seller: `0x${string}`; tokensSold: bigint; plsReceived: bigint };
+          if (args.tokensSold && args.plsReceived) {
+            runningPlsReserve -= args.plsReceived;
+            runningTokenSupply += args.tokensSold;
+            const price = runningTokenSupply > BigInt(0)
+              ? Number(formatUnits(runningPlsReserve * BigInt(10 ** 18) / runningTokenSupply, 18))
+              : 0;
+            tradeData.push({
+              timestamp,
+              price: price > 0 ? price : Number(formatUnits(args.plsReceived, 18)) / Number(formatUnits(args.tokensSold, 18)),
+              volume: Number(formatUnits(args.plsReceived, 18)),
+              isBuy: false,
+            });
+          }
         }
       }
 
-      for (const log of sellLogs) {
-        const args = log.args as { tokensIn: bigint; plsOut: bigint; newPrice: bigint };
-        if (args.newPrice) {
-          tradeData.push({
-            timestamp: blockTimestamps[log.blockNumber.toString()] || Math.floor(Date.now() / 1000),
-            price: Number(formatUnits(args.newPrice, 18)),
-            volume: Number(formatUnits(args.plsOut, 18)),
-            isBuy: false,
-          });
-        }
-      }
-
-      tradeData.sort((a, b) => a.timestamp - b.timestamp);
       setTrades(tradeData);
 
       if (tradeData.length > 0) {

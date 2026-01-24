@@ -64,32 +64,32 @@ export function Header() {
           {logoContent}
         </Link>
 
-        {/* Center: Navigation - Links to main app */}
+        {/* Center: Navigation */}
         <nav className="hidden md:flex items-center gap-6 ml-8">
-          <a
-            href="https://frontend-two-zeta-86.vercel.app/"
+          <Link
+            href="/"
             className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
           >
             Launch
-          </a>
-          <a
-            href="https://frontend-two-zeta-86.vercel.app/"
+          </Link>
+          <Link
+            href="/tokens"
             className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
           >
             Tokens
-          </a>
-          <a
-            href="https://frontend-two-zeta-86.vercel.app/"
+          </Link>
+          <Link
+            href="/leaderboard"
             className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
           >
             Leaderboard
-          </a>
-          <a
-            href="https://frontend-two-zeta-86.vercel.app/"
+          </Link>
+          <Link
+            href="/profile"
             className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
           >
-            Rewards
-          </a>
+            Profile
+          </Link>
         </nav>
 
         {/* Right: Wallet */}

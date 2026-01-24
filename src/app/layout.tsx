@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Space_Grotesk, JetBrains_Mono, Orbitron } from 'next/font/google';
+import { Space_Grotesk, JetBrains_Mono, Orbitron, Cinzel } from 'next/font/google';
 import { Providers } from './providers';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
@@ -21,6 +21,11 @@ const orbitron = Orbitron({
   variable: '--font-display',
 });
 
+const cinzel = Cinzel({
+  subsets: ['latin'],
+  variable: '--font-cinzel',
+});
+
 export const metadata: Metadata = {
   title: 'PUMP.FUD | Memecoin Launchpad on PulseChain',
   description:
@@ -36,7 +41,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${orbitron.variable} font-sans bg-dark-bg text-text-primary min-h-screen flex flex-col antialiased`}
+        className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${orbitron.variable} ${cinzel.variable} font-sans bg-dark-bg text-text-primary min-h-screen flex flex-col antialiased`}
       >
         <Providers>
           <GlobalBackground />

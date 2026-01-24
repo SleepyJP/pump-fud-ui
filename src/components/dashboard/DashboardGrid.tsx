@@ -7,6 +7,8 @@ import { ChartPanel } from './ChartPanel';
 import { TradePanel } from './TradePanel';
 import { LiveChat } from './LiveChat';
 import { MessageBoard } from './MessageBoard';
+import { HoldersPanel } from './HoldersPanel';
+import { InfoPanel } from './InfoPanel';
 import { PanelWrapper } from './PanelWrapper';
 import { SkinSelector } from './SkinSelector';
 import type { PanelType, PanelLayout } from '@/types';
@@ -23,13 +25,15 @@ interface DashboardGridProps {
   tokenAddress: `0x${string}`;
   tokenSymbol?: string;
   currentPrice?: bigint;
+  totalSupply?: bigint;
+  creator?: `0x${string}`;
 }
 
 const ROW_HEIGHT = 60;
 const COLS = 12;
 const MARGIN: [number, number] = [12, 12];
 
-export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice }: DashboardGridProps) {
+export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSupply, creator }: DashboardGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -108,6 +112,27 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice }: Dashb
         return (
           <PanelWrapper panelId={panelId} skin={skin} isLocked={isLocked}>
             <MessageBoard tokenAddress={tokenAddress} />
+          </PanelWrapper>
+        );
+      case 'holders':
+        return (
+          <PanelWrapper panelId={panelId} skin={skin} isLocked={isLocked}>
+            <HoldersPanel
+              tokenAddress={tokenAddress}
+              tokenSymbol={tokenSymbol}
+              totalSupply={totalSupply}
+              creator={creator}
+            />
+          </PanelWrapper>
+        );
+      case 'info':
+        return (
+          <PanelWrapper panelId={panelId} skin={skin} isLocked={isLocked}>
+            <InfoPanel
+              tokenAddress={tokenAddress}
+              tokenSymbol={tokenSymbol}
+              creator={creator}
+            />
           </PanelWrapper>
         );
       default:

@@ -1,7 +1,9 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useReadContract } from 'wagmi';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
 import { Card } from '@/components/ui/Card';
 import { TOKEN_ABI } from '@/config/abis';
@@ -9,6 +11,7 @@ import { formatPLS, formatTokens, formatAddress } from '@/lib/utils';
 
 export default function TokenPage() {
   const params = useParams();
+  const router = useRouter();
   const address = params.address as `0x${string}`;
 
   const { data: name } = useReadContract({
@@ -74,6 +77,23 @@ export default function TokenPage() {
   return (
     <div className="min-h-screen">
       <div className="max-w-[1400px] mx-auto px-4 py-8">
+        {/* Back Button */}
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-dark-secondary border border-border-primary text-text-muted hover:text-fud-green hover:border-fud-green/50 transition-colors font-mono text-sm"
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
+          <Link
+            href="/tokens"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-dark-secondary border border-border-primary text-text-muted hover:text-fud-green hover:border-fud-green/50 transition-colors font-mono text-sm"
+          >
+            All Tokens
+          </Link>
+        </div>
+
         {/* Token Header */}
         <div className="flex items-start gap-6 mb-8">
           <div className="w-20 h-20 rounded-xl bg-dark-secondary flex items-center justify-center overflow-hidden border border-fud-green/30">
@@ -188,6 +208,8 @@ export default function TokenPage() {
           tokenAddress={address}
           tokenSymbol={symbol as string}
           currentPrice={currentPrice as bigint}
+          totalSupply={totalSupply as bigint}
+          creator={creator as `0x${string}`}
         />
       </div>
     </div>

@@ -62,7 +62,7 @@ function TokensPageContent() {
   const { data: tokenAddresses, refetch, isRefetching } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'getTokens',
+    functionName: 'getAllTokens',
     args: [BigInt(0), BigInt(100)],
     query: { enabled: !!CONTRACTS.FACTORY },
   });
@@ -77,16 +77,17 @@ function TokensPageContent() {
 
       setIsLoading(true);
 
-      // Create token info objects (in production, fetch actual data via multicall)
+      // Process token structs from contract
       const tokenInfos: TokenInfo[] = tokenAddresses
-        .filter((addr) => !hiddenTokens.includes(addr.toLowerCase() as `0x${string}`))
-        .map((addr, index) => ({
-          address: addr,
-          name: `Token ${index + 1}`,
-          symbol: `TKN${index + 1}`,
-          graduated: index % 5 === 0, // Placeholder logic
-          createdAt: Date.now() - index * 3600000, // Placeholder
-          priceChange: Math.random() * 200 - 50, // Placeholder
+        .filter((token) => !hiddenTokens.some((h) => h.toLowerCase() === (token.tokenAddress as string).toLowerCase()))
+        .filter((token) => token.status === 0 || token.status === 1) // Live (0) or Graduated (1)
+        .map((token) => ({
+          address: token.tokenAddress as `0x${string}`,
+          name: token.name || 'Unknown',
+          symbol: token.symbol || '???',
+          graduated: token.status === 1, // Graduated status
+          createdAt: Number(token.createdAt) * 1000, // Convert to ms
+          priceChange: 0, // Would need price data
         }));
 
       setTokens(tokenInfos);

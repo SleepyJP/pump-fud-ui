@@ -8,88 +8,120 @@ import { Card } from '@/components/ui/Card';
 import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS, CONSTANTS } from '@/config/wagmi';
 import { formatAddress, formatPLS } from '@/lib/utils';
+import { useSiteSettings } from '@/stores/siteSettingsStore';
 import type { Token } from '@/types';
+
+type FilterType = 'live' | 'rising' | 'new' | 'graduated';
 
 interface LiveTokensListProps {
   limit?: number;
   showTitle?: boolean;
+  filter?: FilterType;
 }
 
-export function LiveTokensList({ limit = 6, showTitle = true }: LiveTokensListProps) {
+export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }: LiveTokensListProps) {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { hiddenTokens } = useSiteSettings();
 
-  // Fetch token addresses from factory
-  const { data: tokenAddresses } = useReadContract({
+  // Filter title based on active filter
+  const filterTitles: Record<FilterType, string> = {
+    live: 'Live Tokens',
+    rising: 'Rising Tokens',
+    new: 'New Tokens',
+    graduated: 'Graduated Tokens',
+  };
+
+  // Fetch all tokens from factory (returns structs with all data)
+  const { data: allTokensData } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'getTokens',
+    functionName: 'getAllTokens',
     args: [BigInt(0), BigInt(limit)],
     query: { enabled: !!CONTRACTS.FACTORY },
   });
 
-  // Build multicall contracts for all token details
-  const tokenContracts = tokenAddresses?.flatMap((addr) => [
-    { address: addr, abi: TOKEN_ABI, functionName: 'name' },
-    { address: addr, abi: TOKEN_ABI, functionName: 'symbol' },
-    { address: addr, abi: TOKEN_ABI, functionName: 'imageUri' },
-    { address: addr, abi: TOKEN_ABI, functionName: 'description' },
-    { address: addr, abi: TOKEN_ABI, functionName: 'creator' },
-    { address: addr, abi: TOKEN_ABI, functionName: 'plsReserve' },
-    { address: addr, abi: TOKEN_ABI, functionName: 'graduated' },
+  // Extract token addresses for multicall to get price/progress data
+  const tokenAddresses = allTokensData?.map((t) => t.tokenAddress as `0x${string}`) || [];
+
+  // Build multicall for price/progress data (not in factory struct)
+  const priceContracts = tokenAddresses?.flatMap((addr) => [
     { address: addr, abi: TOKEN_ABI, functionName: 'getCurrentPrice' },
     { address: addr, abi: TOKEN_ABI, functionName: 'getGraduationProgress' },
     { address: addr, abi: TOKEN_ABI, functionName: 'totalSupply' },
   ]) || [];
 
-  const { data: tokenData } = useReadContracts({
-    contracts: tokenContracts as any,
-    query: { enabled: tokenContracts.length > 0 },
+  const { data: priceData } = useReadContracts({
+    contracts: priceContracts as any,
+    query: { enabled: priceContracts.length > 0 },
   });
 
   // Process token data into usable format
   useEffect(() => {
-    if (!tokenAddresses || !tokenData) {
+    if (!allTokensData) {
       setIsLoading(false);
       return;
     }
 
     const processedTokens: Token[] = [];
-    const fieldsPerToken = 10;
+    const fieldsPerToken = 3; // getCurrentPrice, getGraduationProgress, totalSupply
 
-    for (let i = 0; i < tokenAddresses.length; i++) {
+    for (let i = 0; i < allTokensData.length; i++) {
+      const token = allTokensData[i];
+
+      // Skip non-live tokens (status 0 = Live, 1 = Graduated, 2 = Paused, 3 = Delisted)
+      if (token.status !== 0 && token.status !== 1) continue;
+
       const baseIndex = i * fieldsPerToken;
-      const name = tokenData[baseIndex]?.result as string;
-      const symbol = tokenData[baseIndex + 1]?.result as string;
-      const imageUri = tokenData[baseIndex + 2]?.result as string;
-      const description = tokenData[baseIndex + 3]?.result as string;
-      const creator = tokenData[baseIndex + 4]?.result as `0x${string}`;
-      const plsReserve = tokenData[baseIndex + 5]?.result as bigint;
-      const graduated = tokenData[baseIndex + 6]?.result as boolean;
-      const currentPrice = tokenData[baseIndex + 7]?.result as bigint;
-      const graduationProgress = tokenData[baseIndex + 8]?.result as bigint;
-      const totalSupply = tokenData[baseIndex + 9]?.result as bigint;
+      const currentPrice = priceData?.[baseIndex]?.result as bigint || BigInt(0);
+      const graduationProgress = priceData?.[baseIndex + 1]?.result as bigint || BigInt(0);
+      const totalSupply = priceData?.[baseIndex + 2]?.result as bigint || BigInt(0);
 
-      if (name && symbol) {
+      if (token.name && token.symbol) {
         processedTokens.push({
-          address: tokenAddresses[i],
-          name,
-          symbol,
-          imageUri: imageUri || '',
-          description: description || '',
-          creator: creator || '0x0000000000000000000000000000000000000000',
-          plsReserve: plsReserve || BigInt(0),
-          graduated: graduated || false,
-          currentPrice: currentPrice || BigInt(0),
-          graduationProgress: Number(graduationProgress || 0),
-          totalSupply: totalSupply || BigInt(0),
+          address: token.tokenAddress as `0x${string}`,
+          name: token.name,
+          symbol: token.symbol,
+          imageUri: token.imageUri || '',
+          description: token.description || '',
+          creator: token.creator as `0x${string}`,
+          plsReserve: token.reserveBalance || BigInt(0),
+          graduated: token.status === 1,
+          currentPrice,
+          graduationProgress: Number(graduationProgress),
+          totalSupply,
         });
       }
     }
 
-    setTokens(processedTokens);
+    // Filter out hidden tokens
+    let visibleTokens = processedTokens.filter(
+      (token) => !hiddenTokens.some((hidden) => hidden.toLowerCase() === token.address.toLowerCase())
+    );
+
+    // Apply filter
+    switch (filter) {
+      case 'live':
+        visibleTokens = visibleTokens.filter((t) => !t.graduated);
+        break;
+      case 'graduated':
+        visibleTokens = visibleTokens.filter((t) => t.graduated);
+        break;
+      case 'rising':
+        // Sort by reserve (proxy for activity/rising)
+        visibleTokens = visibleTokens
+          .filter((t) => !t.graduated)
+          .sort((a, b) => Number(b.plsReserve - a.plsReserve));
+        break;
+      case 'new':
+        // All tokens sorted by most recent (already sorted by contract)
+        visibleTokens = visibleTokens.filter((t) => !t.graduated);
+        break;
+    }
+
+    setTokens(visibleTokens);
     setIsLoading(false);
-  }, [tokenAddresses, tokenData]);
+  }, [allTokensData, priceData, hiddenTokens, filter]);
 
   // Calculate progress percentage
   const getProgressPercent = (reserve: bigint): number => {
@@ -103,8 +135,8 @@ export function LiveTokensList({ limit = 6, showTitle = true }: LiveTokensListPr
       <div className="space-y-4">
         {showTitle && (
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-fud-green text-lg">●</span>
-            <h2 className="font-display text-xl text-text-primary">Live Tokens</h2>
+            <span className={`text-lg ${filter === 'graduated' ? 'text-fud-orange' : 'text-fud-green'}`}>●</span>
+            <h2 className="font-display text-xl text-text-primary">{filterTitles[filter]}</h2>
             <span className="text-text-muted font-mono text-sm">(loading...)</span>
           </div>
         )}
@@ -130,12 +162,14 @@ export function LiveTokensList({ limit = 6, showTitle = true }: LiveTokensListPr
       <div className="text-center py-12">
         {showTitle && (
           <div className="flex items-center justify-center gap-2 mb-4">
-            <span className="text-fud-green text-lg">●</span>
-            <h2 className="font-display text-xl text-text-primary">Live Tokens</h2>
+            <span className={`text-lg ${filter === 'graduated' ? 'text-fud-orange' : 'text-fud-green'}`}>●</span>
+            <h2 className="font-display text-xl text-text-primary">{filterTitles[filter]}</h2>
             <span className="text-text-muted font-mono text-sm">(0)</span>
           </div>
         )}
-        <p className="text-text-muted font-mono">No tokens created yet. Be the first!</p>
+        <p className="text-text-muted font-mono">
+          {filter === 'graduated' ? 'No graduated tokens yet.' : 'No tokens created yet. Be the first!'}
+        </p>
       </div>
     );
   }
@@ -144,8 +178,8 @@ export function LiveTokensList({ limit = 6, showTitle = true }: LiveTokensListPr
     <div>
       {showTitle && (
         <div className="flex items-center gap-2 mb-6">
-          <span className="text-fud-green text-lg animate-pulse">●</span>
-          <h2 className="font-display text-xl text-text-primary">Live Tokens</h2>
+          <span className={`text-lg ${filter === 'graduated' ? 'text-fud-orange animate-none' : 'text-fud-green animate-pulse'}`}>●</span>
+          <h2 className="font-display text-xl text-text-primary">{filterTitles[filter]}</h2>
           <span className="text-text-muted font-mono text-sm">({tokens.length})</span>
         </div>
       )}

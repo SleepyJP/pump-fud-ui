@@ -50,7 +50,7 @@ export default function ProfilePage() {
   const { data: allTokens } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'getTokens',
+    functionName: 'getAllTokens',
     args: [BigInt(0), BigInt(100)],
     query: { enabled: !!CONTRACTS.FACTORY && isConnected },
   });
@@ -72,16 +72,14 @@ export default function ProfilePage() {
       setIsLoadingHoldings(true);
       const foundHoldings: TokenHolding[] = [];
 
-      // This is simplified - in production you'd use multicall for efficiency
-      for (const tokenAddr of allTokens) {
+      // Process tokens from the new struct format
+      for (const token of allTokens) {
         try {
-          // We'll just store the token info for now
-          // Balance fetching would need individual calls or multicall
           foundHoldings.push({
-            address: tokenAddr,
-            name: 'Loading...',
-            symbol: '...',
-            balance: BigInt(0),
+            address: token.tokenAddress as `0x${string}`,
+            name: token.name || 'Unknown',
+            symbol: token.symbol || '???',
+            balance: BigInt(0), // Would need multicall to fetch balances
           });
         } catch {
           // Skip failed tokens

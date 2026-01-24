@@ -5,6 +5,48 @@ import type { PanelType } from '@/types';
 // Your wallet address - only this wallet can access admin settings
 export const ADMIN_WALLET = '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B';
 
+export interface ThemeColors {
+  // Primary colors
+  accentPrimary: string;
+  accentSecondary: string;
+  accentTertiary: string;
+
+  // Background colors
+  bgPrimary: string;
+  bgSecondary: string;
+  bgTertiary: string;
+  bgCard: string;
+
+  // Text colors
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  textAccent: string;
+
+  // Border colors
+  borderPrimary: string;
+  borderSecondary: string;
+  borderGlow: string;
+
+  // Button colors
+  buttonPrimary: string;
+  buttonPrimaryText: string;
+  buttonSecondary: string;
+  buttonSecondaryText: string;
+  buttonDanger: string;
+  buttonDangerText: string;
+
+  // Status colors
+  success: string;
+  warning: string;
+  error: string;
+  info: string;
+
+  // Effects
+  glowColor: string;
+  shadowColor: string;
+}
+
 export interface SiteSettings {
   // Global backgrounds
   globalBackground: string | null;
@@ -29,7 +71,55 @@ export interface SiteSettings {
   homepageHeroImage: string | null;
   homepageBannerText: string;
 
-  // Color overrides
+  // Page-specific backgrounds
+  pageBackgrounds: {
+    home: string | null;
+    tokens: string | null;
+    tokenDashboard: string | null;
+    profile: string | null;
+    settings: string | null;
+    launch: string | null;
+    leaderboard: string | null;
+    livestream: string | null;
+  };
+
+  // Floating elements (admin can place text/images on pages)
+  floatingElements: {
+    id: string;
+    type: 'text' | 'image';
+    content: string;
+    page: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    locked: boolean;
+    style?: {
+      fontSize?: string;
+      color?: string;
+      backgroundColor?: string;
+      borderRadius?: string;
+      opacity?: number;
+    };
+  }[];
+
+  // Ad carousel
+  adCarousel: {
+    enabled: boolean;
+    ads: {
+      id: string;
+      imageUrl: string;
+      linkUrl: string;
+      title: string;
+      active: boolean;
+    }[];
+    rotationSpeed: number; // seconds
+  };
+
+  // Full theme colors
+  theme: ThemeColors;
+
+  // Legacy color overrides (kept for backwards compat)
   accentColor: string;
   secondaryAccent: string;
 
@@ -63,6 +153,28 @@ interface SiteSettingsState extends SiteSettings {
   addSavedPattern: (pattern: { name: string; url: string; type: 'pattern' | 'image' }) => void;
   removeSavedPattern: (id: string) => void;
 
+  // Page backgrounds
+  setPageBackground: (page: keyof SiteSettings['pageBackgrounds'], url: string | null) => void;
+
+  // Floating elements
+  addFloatingElement: (element: Omit<SiteSettings['floatingElements'][0], 'id'>) => void;
+  updateFloatingElement: (id: string, updates: Partial<SiteSettings['floatingElements'][0]>) => void;
+  removeFloatingElement: (id: string) => void;
+  lockFloatingElement: (id: string, locked: boolean) => void;
+
+  // Ad carousel
+  setAdCarouselEnabled: (enabled: boolean) => void;
+  setAdRotationSpeed: (speed: number) => void;
+  addAd: (ad: Omit<SiteSettings['adCarousel']['ads'][0], 'id'>) => void;
+  updateAd: (id: string, updates: Partial<SiteSettings['adCarousel']['ads'][0]>) => void;
+  removeAd: (id: string) => void;
+  toggleAdActive: (id: string) => void;
+
+  // Theme setters
+  setThemeColor: (key: keyof ThemeColors, value: string) => void;
+  setFullTheme: (theme: Partial<ThemeColors>) => void;
+  resetTheme: () => void;
+
   // Token management
   hideToken: (address: `0x${string}`) => void;
   unhideToken: (address: `0x${string}`) => void;
@@ -70,6 +182,48 @@ interface SiteSettingsState extends SiteSettings {
 
   resetAllSettings: () => void;
 }
+
+const DEFAULT_THEME: ThemeColors = {
+  // Primary colors
+  accentPrimary: '#00ff88',
+  accentSecondary: '#8b5cf6',
+  accentTertiary: '#f97316',
+
+  // Background colors
+  bgPrimary: '#0a0a0a',
+  bgSecondary: '#141414',
+  bgTertiary: '#1f1f1f',
+  bgCard: '#0d0d0d',
+
+  // Text colors
+  textPrimary: '#ffffff',
+  textSecondary: '#e5e7eb',
+  textMuted: '#9ca3af',
+  textAccent: '#00ff88',
+
+  // Border colors
+  borderPrimary: '#333333',
+  borderSecondary: '#444444',
+  borderGlow: 'rgba(0, 255, 136, 0.3)',
+
+  // Button colors
+  buttonPrimary: '#00ff88',
+  buttonPrimaryText: '#000000',
+  buttonSecondary: '#333333',
+  buttonSecondaryText: '#ffffff',
+  buttonDanger: '#ef4444',
+  buttonDangerText: '#ffffff',
+
+  // Status colors
+  success: '#00ff88',
+  warning: '#f97316',
+  error: '#ef4444',
+  info: '#3b82f6',
+
+  // Effects
+  glowColor: 'rgba(0, 255, 136, 0.5)',
+  shadowColor: 'rgba(0, 0, 0, 0.5)',
+};
 
 const DEFAULT_SETTINGS: SiteSettings = {
   globalBackground: null,
@@ -94,6 +248,23 @@ const DEFAULT_SETTINGS: SiteSettings = {
   tokenCardPatternOpacity: 20,
   homepageHeroImage: null,
   homepageBannerText: 'PUMP.FUD - Launch your token on PulseChain',
+  pageBackgrounds: {
+    home: null,
+    tokens: null,
+    tokenDashboard: null,
+    profile: null,
+    settings: null,
+    launch: null,
+    leaderboard: null,
+    livestream: null,
+  },
+  floatingElements: [],
+  adCarousel: {
+    enabled: false,
+    ads: [],
+    rotationSpeed: 5,
+  },
+  theme: DEFAULT_THEME,
   accentColor: '#00ff88',
   secondaryAccent: '#8b5cf6',
   savedPatterns: [],
@@ -142,6 +313,100 @@ export const useSiteSettings = create<SiteSettingsState>()(
         set((state) => ({
           savedPatterns: state.savedPatterns.filter((p) => p.id !== id),
         })),
+
+      // Page backgrounds
+      setPageBackground: (page, url) =>
+        set((state) => ({
+          pageBackgrounds: { ...state.pageBackgrounds, [page]: url },
+        })),
+
+      // Floating elements
+      addFloatingElement: (element) =>
+        set((state) => ({
+          floatingElements: [
+            ...state.floatingElements,
+            { ...element, id: `float-${Date.now()}` },
+          ],
+        })),
+
+      updateFloatingElement: (id, updates) =>
+        set((state) => ({
+          floatingElements: state.floatingElements.map((el) =>
+            el.id === id ? { ...el, ...updates } : el
+          ),
+        })),
+
+      removeFloatingElement: (id) =>
+        set((state) => ({
+          floatingElements: state.floatingElements.filter((el) => el.id !== id),
+        })),
+
+      lockFloatingElement: (id, locked) =>
+        set((state) => ({
+          floatingElements: state.floatingElements.map((el) =>
+            el.id === id ? { ...el, locked } : el
+          ),
+        })),
+
+      // Ad carousel
+      setAdCarouselEnabled: (enabled) =>
+        set((state) => ({
+          adCarousel: { ...state.adCarousel, enabled },
+        })),
+
+      setAdRotationSpeed: (speed) =>
+        set((state) => ({
+          adCarousel: { ...state.adCarousel, rotationSpeed: speed },
+        })),
+
+      addAd: (ad) =>
+        set((state) => ({
+          adCarousel: {
+            ...state.adCarousel,
+            ads: [...state.adCarousel.ads, { ...ad, id: `ad-${Date.now()}` }],
+          },
+        })),
+
+      updateAd: (id, updates) =>
+        set((state) => ({
+          adCarousel: {
+            ...state.adCarousel,
+            ads: state.adCarousel.ads.map((ad) =>
+              ad.id === id ? { ...ad, ...updates } : ad
+            ),
+          },
+        })),
+
+      removeAd: (id) =>
+        set((state) => ({
+          adCarousel: {
+            ...state.adCarousel,
+            ads: state.adCarousel.ads.filter((ad) => ad.id !== id),
+          },
+        })),
+
+      toggleAdActive: (id) =>
+        set((state) => ({
+          adCarousel: {
+            ...state.adCarousel,
+            ads: state.adCarousel.ads.map((ad) =>
+              ad.id === id ? { ...ad, active: !ad.active } : ad
+            ),
+          },
+        })),
+
+      // Theme setters
+      setThemeColor: (key, value) =>
+        set((state) => ({
+          theme: { ...state.theme, [key]: value },
+        })),
+
+      setFullTheme: (theme) =>
+        set((state) => ({
+          theme: { ...state.theme, ...theme },
+        })),
+
+      resetTheme: () => set({ theme: DEFAULT_THEME }),
 
       // Token management
       hideToken: (address) =>
