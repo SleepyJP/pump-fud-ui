@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAccount, useReadContract, useBalance } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -16,30 +16,53 @@ import {
   Check,
   Rocket,
   ArrowUpRight,
-  ArrowDownRight,
+  Edit3,
+  Save,
+  X,
+  Camera,
+  Twitter,
+  Globe,
+  MessageCircle,
+  Crown,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
+import { Input } from '@/components/ui/Input';
+import { FACTORY_ABI } from '@/config/abis';
 import { CONTRACTS } from '@/config/wagmi';
 import { formatAddress, formatPLS } from '@/lib/utils';
+import { useProfileStore } from '@/stores/profileStore';
 
-interface TokenHolding {
+interface TokenInfo {
   address: `0x${string}`;
   name: string;
   symbol: string;
-  balance: bigint;
-  value?: bigint;
+  creator: `0x${string}`;
+  graduated: boolean;
+  reserveBalance: bigint;
+  createdAt: number;
 }
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'holdings' | 'created' | 'activity'>('holdings');
-  const [holdings, setHoldings] = useState<TokenHolding[]>([]);
-  const [createdTokens, setCreatedTokens] = useState<`0x${string}`[]>([]);
-  const [isLoadingHoldings, setIsLoadingHoldings] = useState(false);
+  const [activeTab, setActiveTab] = useState<'created' | 'graduated' | 'holdings' | 'activity'>('created');
+  const [allTokens, setAllTokens] = useState<TokenInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Profile editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editAvatar, setEditAvatar] = useState('');
+  const [editTwitter, setEditTwitter] = useState('');
+  const [editTelegram, setEditTelegram] = useState('');
+  const [editWebsite, setEditWebsite] = useState('');
+
+  // Profile store
+  const { getProfile, setProfile } = useProfileStore();
+  const profile = address ? getProfile(address) : null;
 
   // Get PLS balance
   const { data: plsBalance } = useBalance({
@@ -47,13 +70,47 @@ export default function ProfilePage() {
   });
 
   // Get all tokens from factory
-  const { data: allTokens } = useReadContract({
+  const { data: tokensData } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
     functionName: 'getAllTokens',
-    args: [BigInt(0), BigInt(100)],
+    args: [BigInt(0), BigInt(200)],
     query: { enabled: !!CONTRACTS.FACTORY && isConnected },
   });
+
+  // Process tokens
+  useEffect(() => {
+    if (!tokensData) {
+      setAllTokens([]);
+      return;
+    }
+
+    setIsLoading(true);
+    const tokens: TokenInfo[] = tokensData.map((t) => ({
+      address: t.tokenAddress as `0x${string}`,
+      name: t.name || 'Unknown',
+      symbol: t.symbol || '???',
+      creator: t.creator as `0x${string}`,
+      graduated: t.status === 1,
+      reserveBalance: t.reserveBalance || BigInt(0),
+      createdAt: Number(t.createdAt) * 1000,
+    }));
+    setAllTokens(tokens);
+    setIsLoading(false);
+  }, [tokensData]);
+
+  // Filter tokens by creator (tokens this wallet created)
+  const createdTokens = useMemo(() => {
+    if (!address) return [];
+    return allTokens.filter(
+      (t) => t.creator.toLowerCase() === address.toLowerCase()
+    );
+  }, [allTokens, address]);
+
+  // Graduated tokens created by this wallet
+  const graduatedTokens = useMemo(() => {
+    return createdTokens.filter((t) => t.graduated);
+  }, [createdTokens]);
 
   // Copy address to clipboard
   const copyAddress = () => {
@@ -64,34 +121,37 @@ export default function ProfilePage() {
     }
   };
 
-  // Check holdings across all tokens
-  useEffect(() => {
-    const checkHoldings = async () => {
-      if (!allTokens || !address || allTokens.length === 0) return;
+  // Start editing
+  const startEditing = () => {
+    setEditName(profile?.displayName || '');
+    setEditBio(profile?.bio || '');
+    setEditAvatar(profile?.avatarUrl || '');
+    setEditTwitter(profile?.socialLinks?.twitter || '');
+    setEditTelegram(profile?.socialLinks?.telegram || '');
+    setEditWebsite(profile?.socialLinks?.website || '');
+    setIsEditing(true);
+  };
 
-      setIsLoadingHoldings(true);
-      const foundHoldings: TokenHolding[] = [];
+  // Save profile
+  const saveProfile = () => {
+    if (!address) return;
+    setProfile(address, {
+      displayName: editName,
+      bio: editBio,
+      avatarUrl: editAvatar,
+      socialLinks: {
+        twitter: editTwitter || undefined,
+        telegram: editTelegram || undefined,
+        website: editWebsite || undefined,
+      },
+    });
+    setIsEditing(false);
+  };
 
-      // Process tokens from the new struct format
-      for (const token of allTokens) {
-        try {
-          foundHoldings.push({
-            address: token.tokenAddress as `0x${string}`,
-            name: token.name || 'Unknown',
-            symbol: token.symbol || '???',
-            balance: BigInt(0), // Would need multicall to fetch balances
-          });
-        } catch {
-          // Skip failed tokens
-        }
-      }
-
-      setHoldings(foundHoldings);
-      setIsLoadingHoldings(false);
-    };
-
-    checkHoldings();
-  }, [allTokens, address]);
+  // Cancel editing
+  const cancelEditing = () => {
+    setIsEditing(false);
+  };
 
   if (!isConnected) {
     return (
@@ -116,84 +176,286 @@ export default function ProfilePage() {
         {/* Profile Header */}
         <Card variant="glow" className="mb-8">
           <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-              {/* Avatar */}
-              <div className="w-24 h-24 bg-gradient-to-br from-fud-green via-fud-purple to-fud-orange rounded-2xl flex items-center justify-center">
-                <User size={48} className="text-dark-bg" />
-              </div>
-
-              {/* Info */}
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="font-display text-2xl text-fud-green">
-                    {formatAddress(address!)}
-                  </h1>
-                  <button
-                    onClick={copyAddress}
-                    className="p-1.5 hover:bg-dark-secondary rounded transition-colors"
-                    title="Copy address"
-                  >
-                    {copied ? (
-                      <Check size={16} className="text-fud-green" />
-                    ) : (
-                      <Copy size={16} className="text-text-muted" />
-                    )}
-                  </button>
-                  <a
-                    href={`https://scan.pulsechain.com/address/${address}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 hover:bg-dark-secondary rounded transition-colors"
-                    title="View on PulseScan"
-                  >
-                    <ExternalLink size={16} className="text-text-muted" />
-                  </a>
+            {isEditing ? (
+              // Edit Mode
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-display text-xl text-fud-green">Edit Profile</h2>
+                  <div className="flex gap-2">
+                    <Button onClick={cancelEditing} variant="secondary" className="gap-2">
+                      <X size={16} />
+                      Cancel
+                    </Button>
+                    <Button onClick={saveProfile} className="gap-2">
+                      <Save size={16} />
+                      Save
+                    </Button>
+                  </div>
                 </div>
-                <p className="text-text-muted font-mono text-sm">
-                  Connected to PulseChain
-                </p>
-              </div>
 
-              {/* Balance */}
-              <div className="text-right">
-                <p className="text-text-muted text-xs font-mono mb-1">PLS Balance</p>
-                <p className="font-display text-3xl text-fud-green">
-                  {plsBalance ? formatPLS(plsBalance.value) : '0'} PLS
-                </p>
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Left Column - Basic Info */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-mono text-text-muted mb-2">
+                        Display Name
+                      </label>
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Your display name..."
+                        maxLength={32}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono text-text-muted mb-2">
+                        Bio / Description
+                      </label>
+                      <textarea
+                        value={editBio}
+                        onChange={(e) => setEditBio(e.target.value)}
+                        placeholder="Tell us about yourself..."
+                        maxLength={280}
+                        rows={3}
+                        className="w-full px-3 py-2 bg-dark-secondary border border-border-primary rounded-lg text-text-primary font-mono text-sm resize-none focus:border-fud-green/50 focus:outline-none"
+                      />
+                      <p className="text-xs text-text-muted mt-1">{editBio.length}/280</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono text-text-muted mb-2">
+                        <Camera size={12} className="inline mr-1" />
+                        Profile Image URL
+                      </label>
+                      <Input
+                        value={editAvatar}
+                        onChange={(e) => setEditAvatar(e.target.value)}
+                        placeholder="https://... (image URL)"
+                      />
+                      {editAvatar && (
+                        <div className="mt-2">
+                          <img
+                            src={editAvatar}
+                            alt="Preview"
+                            className="w-16 h-16 rounded-xl object-cover border border-fud-green/30"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column - Social Links */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-mono text-text-muted mb-2">
+                        <Twitter size={12} className="inline mr-1" />
+                        Twitter / X
+                      </label>
+                      <Input
+                        value={editTwitter}
+                        onChange={(e) => setEditTwitter(e.target.value)}
+                        placeholder="https://twitter.com/..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono text-text-muted mb-2">
+                        <MessageCircle size={12} className="inline mr-1" />
+                        Telegram
+                      </label>
+                      <Input
+                        value={editTelegram}
+                        onChange={(e) => setEditTelegram(e.target.value)}
+                        placeholder="https://t.me/..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono text-text-muted mb-2">
+                        <Globe size={12} className="inline mr-1" />
+                        Website
+                      </label>
+                      <Input
+                        value={editWebsite}
+                        onChange={(e) => setEditWebsite(e.target.value)}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              // View Mode
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+                {/* Avatar */}
+                <div className="relative group">
+                  {profile?.avatarUrl ? (
+                    <img
+                      src={profile.avatarUrl}
+                      alt={profile.displayName || 'Profile'}
+                      className="w-24 h-24 rounded-2xl object-cover border-2 border-fud-green/30"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 bg-gradient-to-br from-fud-green via-fud-purple to-fud-orange rounded-2xl flex items-center justify-center">
+                      <User size={48} className="text-dark-bg" />
+                    </div>
+                  )}
+                  <button
+                    onClick={startEditing}
+                    className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                  >
+                    <Edit3 size={24} className="text-white" />
+                  </button>
+                </div>
+
+                {/* Info */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="font-display text-2xl text-fud-green">
+                      {profile?.displayName || formatAddress(address!)}
+                    </h1>
+                    <button
+                      onClick={copyAddress}
+                      className="p-1.5 hover:bg-dark-secondary rounded transition-colors"
+                      title="Copy address"
+                    >
+                      {copied ? (
+                        <Check size={16} className="text-fud-green" />
+                      ) : (
+                        <Copy size={16} className="text-text-muted" />
+                      )}
+                    </button>
+                    <a
+                      href={`https://scan.pulsechain.com/address/${address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 hover:bg-dark-secondary rounded transition-colors"
+                      title="View on PulseScan"
+                    >
+                      <ExternalLink size={16} className="text-text-muted" />
+                    </a>
+                    <Button onClick={startEditing} variant="secondary" className="gap-2 ml-2">
+                      <Edit3 size={14} />
+                      Edit Profile
+                    </Button>
+                  </div>
+
+                  {profile?.bio && (
+                    <p className="text-text-secondary text-sm mb-2 max-w-xl">
+                      {profile.bio}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-text-muted font-mono text-xs">
+                      {formatAddress(address!)}
+                    </span>
+                    {profile?.socialLinks?.twitter && (
+                      <a
+                        href={profile.socialLinks.twitter}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-fud-green hover:underline flex items-center gap-1"
+                      >
+                        <Twitter size={14} />
+                      </a>
+                    )}
+                    {profile?.socialLinks?.telegram && (
+                      <a
+                        href={profile.socialLinks.telegram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-fud-green hover:underline flex items-center gap-1"
+                      >
+                        <MessageCircle size={14} />
+                      </a>
+                    )}
+                    {profile?.socialLinks?.website && (
+                      <a
+                        href={profile.socialLinks.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-fud-green hover:underline flex items-center gap-1"
+                      >
+                        <Globe size={14} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Balance */}
+                <div className="text-right">
+                  <p className="text-text-muted text-xs font-mono mb-1">PLS Balance</p>
+                  <p className="font-display text-3xl text-fud-green">
+                    {plsBalance ? formatPLS(plsBalance.value) : '0'} PLS
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card variant="bordered" className="p-4 text-center">
-            <Coins className="w-8 h-8 mx-auto mb-2 text-fud-green" />
-            <div className="text-2xl font-display text-fud-green">{holdings.length}</div>
-            <div className="text-xs font-mono text-text-muted">Tokens Held</div>
-          </Card>
-          <Card variant="bordered" className="p-4 text-center">
             <Rocket className="w-8 h-8 mx-auto mb-2 text-fud-purple" />
             <div className="text-2xl font-display text-fud-purple">{createdTokens.length}</div>
             <div className="text-xs font-mono text-text-muted">Tokens Created</div>
           </Card>
           <Card variant="bordered" className="p-4 text-center">
-            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-fud-orange" />
-            <div className="text-2xl font-display text-fud-orange">--</div>
-            <div className="text-xs font-mono text-text-muted">Total P&L</div>
+            <Trophy className="w-8 h-8 mx-auto mb-2 text-fud-orange" />
+            <div className="text-2xl font-display text-fud-orange">{graduatedTokens.length}</div>
+            <div className="text-xs font-mono text-text-muted">Graduated</div>
           </Card>
           <Card variant="bordered" className="p-4 text-center">
-            <Trophy className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
-            <div className="text-2xl font-display text-yellow-400">--</div>
-            <div className="text-xs font-mono text-text-muted">Leaderboard Rank</div>
+            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-fud-green" />
+            <div className="text-2xl font-display text-fud-green">
+              {createdTokens.length > 0
+                ? formatPLS(createdTokens.reduce((acc, t) => acc + t.reserveBalance, BigInt(0)))
+                : '0'}
+            </div>
+            <div className="text-xs font-mono text-text-muted">Total Reserve</div>
+          </Card>
+          <Card variant="bordered" className="p-4 text-center">
+            <Crown className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
+            <div className="text-2xl font-display text-yellow-400">
+              {graduatedTokens.length > 0 ? Math.round((graduatedTokens.length / createdTokens.length) * 100) : 0}%
+            </div>
+            <div className="text-xs font-mono text-text-muted">Success Rate</div>
           </Card>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-border-primary pb-2">
+        <div className="flex gap-2 mb-6 border-b border-border-primary pb-2 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('created')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-mono text-sm transition-colors whitespace-nowrap ${
+              activeTab === 'created'
+                ? 'bg-fud-purple/20 text-fud-purple border-b-2 border-fud-purple'
+                : 'text-text-muted hover:text-text-primary'
+            }`}
+          >
+            <Rocket size={16} />
+            My Tokens ({createdTokens.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('graduated')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-mono text-sm transition-colors whitespace-nowrap ${
+              activeTab === 'graduated'
+                ? 'bg-fud-orange/20 text-fud-orange border-b-2 border-fud-orange'
+                : 'text-text-muted hover:text-text-primary'
+            }`}
+          >
+            <Trophy size={16} />
+            Graduated ({graduatedTokens.length})
+          </button>
           <button
             onClick={() => setActiveTab('holdings')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-mono text-sm transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-mono text-sm transition-colors whitespace-nowrap ${
               activeTab === 'holdings'
                 ? 'bg-fud-green/20 text-fud-green border-b-2 border-fud-green'
                 : 'text-text-muted hover:text-text-primary'
@@ -203,21 +465,10 @@ export default function ProfilePage() {
             Holdings
           </button>
           <button
-            onClick={() => setActiveTab('created')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-mono text-sm transition-colors ${
-              activeTab === 'created'
-                ? 'bg-fud-purple/20 text-fud-purple border-b-2 border-fud-purple'
-                : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            <Rocket size={16} />
-            Created
-          </button>
-          <button
             onClick={() => setActiveTab('activity')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-mono text-sm transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg font-mono text-sm transition-colors whitespace-nowrap ${
               activeTab === 'activity'
-                ? 'bg-fud-orange/20 text-fud-orange border-b-2 border-fud-orange'
+                ? 'bg-fud-green/20 text-fud-green border-b-2 border-fud-green'
                 : 'text-text-muted hover:text-text-primary'
             }`}
           >
@@ -229,72 +480,113 @@ export default function ProfilePage() {
         {/* Tab Content */}
         <Card variant="bordered">
           <CardContent className="p-6">
-            {activeTab === 'holdings' && (
+            {isLoading ? (
+              <div className="text-center py-12">
+                <div className="w-8 h-8 border-2 border-fud-green/30 border-t-fud-green rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-text-muted font-mono text-sm">Loading...</p>
+              </div>
+            ) : activeTab === 'created' ? (
               <div>
-                {isLoadingHoldings ? (
+                {createdTokens.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="w-8 h-8 border-2 border-fud-green/30 border-t-fud-green rounded-full animate-spin mx-auto mb-3" />
-                    <p className="text-text-muted font-mono text-sm">Loading holdings...</p>
-                  </div>
-                ) : holdings.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Coins className="w-12 h-12 mx-auto mb-3 text-text-muted" />
+                    <Rocket className="w-12 h-12 mx-auto mb-3 text-text-muted" />
                     <p className="text-text-muted font-mono text-sm mb-4">
-                      No token holdings found
+                      You haven&apos;t created any tokens yet
                     </p>
-                    <Link href="/tokens">
-                      <Button variant="secondary" className="gap-2">
-                        Browse Tokens
-                        <ArrowUpRight size={16} />
+                    <Link href="/launch">
+                      <Button className="gap-2">
+                        <Rocket size={16} />
+                        Launch Your First Token
                       </Button>
                     </Link>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {holdings.slice(0, 10).map((token) => (
+                    {createdTokens.map((token) => (
                       <Link
                         key={token.address}
                         href={`/token/${token.address}`}
                         className="flex items-center justify-between p-4 bg-dark-secondary rounded-lg hover:bg-dark-tertiary transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-fud-green/20 rounded-lg flex items-center justify-center">
-                            <span className="text-fud-green font-mono text-sm">
+                          <div className="w-10 h-10 bg-fud-purple/20 rounded-lg flex items-center justify-center">
+                            <span className="text-fud-purple font-mono text-sm">
                               {token.symbol.slice(0, 2)}
                             </span>
                           </div>
                           <div>
-                            <p className="text-text-primary font-mono">{token.name}</p>
-                            <p className="text-text-muted text-xs font-mono">{token.symbol}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-text-primary font-mono">{token.name}</p>
+                              {token.graduated && (
+                                <span className="px-2 py-0.5 bg-fud-orange/20 text-fud-orange text-xs font-mono rounded">
+                                  GRADUATED
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-text-muted text-xs font-mono">${token.symbol}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-fud-green font-mono">--</p>
-                          <p className="text-text-muted text-xs font-mono">Balance</p>
+                          <p className="text-fud-green font-mono">{formatPLS(token.reserveBalance)} PLS</p>
+                          <p className="text-text-muted text-xs font-mono">Reserve</p>
                         </div>
                       </Link>
                     ))}
                   </div>
                 )}
               </div>
-            )}
-
-            {activeTab === 'created' && (
+            ) : activeTab === 'graduated' ? (
+              <div>
+                {graduatedTokens.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Trophy className="w-12 h-12 mx-auto mb-3 text-text-muted" />
+                    <p className="text-text-muted font-mono text-sm mb-2">
+                      No graduated tokens yet
+                    </p>
+                    <p className="text-text-muted/50 text-xs font-mono">
+                      Tokens graduate when they reach 69K PLS in the bonding curve
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {graduatedTokens.map((token) => (
+                      <Link
+                        key={token.address}
+                        href={`/token/${token.address}`}
+                        className="flex items-center justify-between p-4 bg-dark-secondary rounded-lg hover:bg-dark-tertiary transition-colors border border-fud-orange/30"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-fud-orange/20 rounded-lg flex items-center justify-center">
+                            <Trophy className="text-fud-orange" size={20} />
+                          </div>
+                          <div>
+                            <p className="text-text-primary font-mono">{token.name}</p>
+                            <p className="text-text-muted text-xs font-mono">${token.symbol}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-fud-orange font-mono">{formatPLS(token.reserveBalance)} PLS</p>
+                          <p className="text-fud-orange/50 text-xs font-mono">Graduated ✓</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : activeTab === 'holdings' ? (
               <div className="text-center py-12">
-                <Rocket className="w-12 h-12 mx-auto mb-3 text-text-muted" />
+                <Coins className="w-12 h-12 mx-auto mb-3 text-text-muted" />
                 <p className="text-text-muted font-mono text-sm mb-4">
-                  No tokens created yet
+                  Token balance tracking coming soon
                 </p>
-                <Link href="/">
-                  <Button className="gap-2">
-                    <Rocket size={16} />
-                    Launch a Token
+                <Link href="/tokens">
+                  <Button variant="secondary" className="gap-2">
+                    Browse Tokens
+                    <ArrowUpRight size={16} />
                   </Button>
                 </Link>
               </div>
-            )}
-
-            {activeTab === 'activity' && (
+            ) : (
               <div className="text-center py-12">
                 <Activity className="w-12 h-12 mx-auto mb-3 text-text-muted" />
                 <p className="text-text-muted font-mono text-sm">
