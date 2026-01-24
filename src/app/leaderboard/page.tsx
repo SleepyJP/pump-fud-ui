@@ -79,8 +79,29 @@ export default function LeaderboardPage() {
   };
 
   return (
-    <div className="min-h-screen grid-bg">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="min-h-screen relative">
+      {/* Full-bleed background */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundImage: 'url(/backgrounds/leaderboard-bg.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          zIndex: 0,
+        }}
+      />
+      {/* Dark overlay for readability */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.6) 100%)',
+          zIndex: 1,
+        }}
+      />
+      <div className="relative z-10 max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
           <Crown className="w-16 h-16 mx-auto mb-4 text-yellow-400" />

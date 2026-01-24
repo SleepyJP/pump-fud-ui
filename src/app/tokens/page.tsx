@@ -129,8 +129,29 @@ function TokensPageContent() {
   }, [tokens, filter, searchQuery]);
 
   return (
-    <div className="min-h-screen grid-bg">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="min-h-screen relative">
+      {/* Full-bleed background */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundImage: 'url(/backgrounds/live-tokens-bg.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          zIndex: 0,
+        }}
+      />
+      {/* Dark overlay for readability */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.7) 100%)',
+          zIndex: 1,
+        }}
+      />
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
           <div>
@@ -353,7 +374,11 @@ function TokensPageContent() {
 
 function TokensPageLoading() {
   return (
-    <div className="min-h-screen grid-bg flex items-center justify-center">
+    <div className="min-h-screen relative flex items-center justify-center" style={{
+      backgroundImage: 'url(/backgrounds/live-tokens-bg.jpg)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    }}>
       <div className="text-center">
         <div className="w-12 h-12 border-2 border-fud-green/30 border-t-fud-green rounded-full animate-spin mx-auto mb-4" />
         <p className="text-text-muted font-mono">Loading tokens...</p>

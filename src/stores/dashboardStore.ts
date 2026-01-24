@@ -76,27 +76,19 @@ export const useDashboardStore = create<DashboardState>()(
     }),
     {
       name: 'pump-fud-dashboard',
-      version: 2, // Bump version to trigger migration
+      version: 3, // Bump version to force proper layouts with all panels
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as DashboardState;
 
         // Migration: ensure all default panels exist in layouts and activePanels
-        if (version < 2) {
-          const existingLayoutIds = state.layouts?.map((l) => l.i) || [];
-          const missingLayouts = DEFAULT_LAYOUTS.filter(
-            (dl) => !existingLayoutIds.includes(dl.i)
-          );
-
-          const existingPanels = state.activePanels || [];
-          const missingPanels = DEFAULT_PANELS.filter(
-            (dp) => !existingPanels.includes(dp)
-          );
-
+        // Version 3: Force reset layouts to fix Holders panel positioning
+        if (version < 3) {
           return {
             ...state,
-            layouts: [...(state.layouts || []), ...missingLayouts],
-            activePanels: [...existingPanels, ...missingPanels],
-            panelSkins: { ...DEFAULT_SKINS, ...(state.panelSkins || {}) },
+            layouts: DEFAULT_LAYOUTS,
+            activePanels: DEFAULT_PANELS,
+            panelSkins: DEFAULT_SKINS,
+            isLocked: true,
           };
         }
 

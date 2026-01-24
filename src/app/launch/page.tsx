@@ -157,11 +157,11 @@ export default function LaunchPage() {
       inset: 0,
       overflow: 'auto',
     }}>
-      {/* Full-bleed background */}
+      {/* Full-bleed FORGE background */}
       <div style={{
         position: 'fixed',
         inset: 0,
-        backgroundImage: 'url(/backgrounds/landing-page.jpg)',
+        backgroundImage: 'url(/backgrounds/forge-bg.png)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',

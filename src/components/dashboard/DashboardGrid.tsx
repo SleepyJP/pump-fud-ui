@@ -1,8 +1,10 @@
 'use client';
 
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
+import { useAccount } from 'wagmi';
 import { Lock, Unlock, RotateCcw, Settings } from 'lucide-react';
 import { useDashboardStore } from '@/stores/dashboardStore';
+import { ADMIN_WALLET } from '@/stores/siteSettingsStore';
 import { ChartPanel } from './ChartPanel';
 import { TradePanel } from './TradePanel';
 import { LiveChat } from './LiveChat';
@@ -36,6 +38,10 @@ const MARGIN: [number, number] = [12, 12];
 export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSupply, creator }: DashboardGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  const { address, isConnected } = useAccount();
+
+  // Only admin wallet can unlock/modify the dashboard
+  const isAdmin = isConnected && address?.toLowerCase() === ADMIN_WALLET.toLowerCase();
 
   const {
     layouts,
@@ -153,60 +159,62 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
 
   return (
     <div className="relative" ref={containerRef}>
-      {/* Dashboard Controls */}
-      <div className="flex items-center justify-between mb-4 px-2">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleLock}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all ${
-              isLocked
-                ? 'bg-dark-secondary border border-border-primary text-text-muted hover:border-fud-green/50 hover:text-fud-green'
-                : 'bg-fud-green/20 border border-fud-green text-fud-green animate-pulse'
-            }`}
-          >
-            {isLocked ? (
-              <>
-                <Lock size={16} />
-                <span>LOCKED</span>
-              </>
-            ) : (
-              <>
-                <Unlock size={16} />
-                <span>UNLOCKED - DRAG PANELS</span>
-              </>
-            )}
-          </button>
+      {/* Dashboard Controls - ADMIN ONLY */}
+      {isAdmin && (
+        <div className="flex items-center justify-between mb-4 px-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleLock}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm transition-all ${
+                isLocked
+                  ? 'bg-dark-secondary border border-border-primary text-text-muted hover:border-fud-green/50 hover:text-fud-green'
+                  : 'bg-fud-green/20 border border-fud-green text-fud-green animate-pulse'
+              }`}
+            >
+              {isLocked ? (
+                <>
+                  <Lock size={16} />
+                  <span>Unlock UI</span>
+                </>
+              ) : (
+                <>
+                  <Unlock size={16} />
+                  <span>UNLOCKED - DRAG PANELS</span>
+                </>
+              )}
+            </button>
 
-          <button
-            onClick={() => {
-              resetLayout();
-              // Also clear localStorage to fix stale layout data
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('pump-fud-dashboard');
-              }
-            }}
-            title="Reset panels to default positions (fixes layout gaps)"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg font-mono text-sm bg-dark-secondary border border-border-primary text-text-muted hover:border-fud-orange/50 hover:text-fud-orange transition-all"
-          >
-            <RotateCcw size={16} />
-            <span>Reset</span>
-          </button>
+            <button
+              onClick={() => {
+                resetLayout();
+                // Also clear localStorage to fix stale layout data
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('pump-fud-dashboard');
+                }
+              }}
+              title="Reset panels to default positions (fixes layout gaps)"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg font-mono text-sm bg-dark-secondary border border-border-primary text-text-muted hover:border-fud-orange/50 hover:text-fud-orange transition-all"
+            >
+              <RotateCcw size={16} />
+              <span>Reset</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isLocked && <SkinSelector />}
+            <a
+              href="/settings"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg font-mono text-sm bg-dark-secondary border border-border-primary text-text-muted hover:border-fud-purple/50 hover:text-fud-purple transition-all"
+            >
+              <Settings size={16} />
+              <span>Settings</span>
+            </a>
+          </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-2">
-          {!isLocked && <SkinSelector />}
-          <a
-            href="/settings"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg font-mono text-sm bg-dark-secondary border border-border-primary text-text-muted hover:border-fud-purple/50 hover:text-fud-purple transition-all"
-          >
-            <Settings size={16} />
-            <span>Settings</span>
-          </a>
-        </div>
-      </div>
-
-      {/* Unlock Indicator */}
-      {!isLocked && (
+      {/* Unlock Indicator - ADMIN ONLY */}
+      {isAdmin && !isLocked && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-fud-green/20 border border-fud-green rounded-lg font-mono text-sm text-fud-green animate-bounce">
           Drag panels to reposition • Drag edges to resize • Click LOCK when done
         </div>

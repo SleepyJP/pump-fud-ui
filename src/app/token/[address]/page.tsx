@@ -148,7 +148,7 @@ export default function TokenPage() {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
           <Card className="p-4">
             <div className="text-text-muted text-xs font-mono mb-1">Price</div>
             <div className="text-fud-green font-display text-lg">
@@ -185,7 +185,7 @@ export default function TokenPage() {
 
         {/* Progress Bar */}
         {!graduated && (
-          <Card className="p-4 mb-8">
+          <Card className="p-4 mb-4">
             <div className="flex justify-between text-xs font-mono mb-2">
               <span className="text-text-muted">Graduation Progress</span>
               <span className="text-fud-green">
