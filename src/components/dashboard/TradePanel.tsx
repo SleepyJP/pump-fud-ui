@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { TOKEN_ABI } from '@/config/abis';
 import { formatPLS } from '@/lib/utils';
+import { useGasEstimate, usePLSPrice } from '@/hooks/usePulseChainData';
+import { GAS_LIMITS } from '@/lib/pulsechainApi';
 
 interface TradePanelProps {
   tokenAddress?: `0x${string}`;
@@ -22,6 +24,11 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }
 
   const { address, isConnected } = useAccount();
   const { data: plsBalance } = useBalance({ address });
+
+  // PulseChain API - live gas estimation
+  const gasOperation = mode === 'buy' ? 'TOKEN_BUY' : 'TOKEN_SELL';
+  const { estimate: gasEstimate } = useGasEstimate({ operation: gasOperation as keyof typeof GAS_LIMITS });
+  const { formatted: plsPriceUSD } = usePLSPrice();
   const { data: tokenBalanceRaw } = useReadContract({
     address: tokenAddress,
     abi: erc20Abi,
@@ -164,6 +171,20 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }
                 <span className="text-text-muted">Fee</span>
                 <span className="text-fud-orange">{mode === 'buy' ? '1.0%' : '1.1%'}</span>
               </div>
+              {gasEstimate && (
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-text-muted">Est. Gas</span>
+                  <span className="text-text-secondary">
+                    ~{gasEstimate.medium.pls} PLS ({gasEstimate.medium.usd})
+                  </span>
+                </div>
+              )}
+              {plsPriceUSD && (
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-text-muted">PLS Price</span>
+                  <span className="text-fud-cyan">{plsPriceUSD}</span>
+                </div>
+              )}
             </div>
 
             {isSuccess && (
