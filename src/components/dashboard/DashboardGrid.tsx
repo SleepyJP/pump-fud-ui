@@ -53,73 +53,86 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
     panelSkins,
   } = useDashboardStore();
 
-  // Callback ref pattern for reliable width measurement
-  const measureRef = useCallback((node: HTMLDivElement | null) => {
-    // Cleanup previous observer
-    if (resizeObserverRef.current) {
-      resizeObserverRef.current.disconnect();
-      resizeObserverRef.current = null;
-    }
-
-    if (node) {
-      containerRef.current = node;
-
-      // Measure immediately
-      const measureWidth = () => {
-        const width = node.offsetWidth;
-        if (width > 0) {
-          setContainerWidth(width);
-        } else if (typeof window !== 'undefined') {
-          // Fallback to window width minus padding
-          const fallbackWidth = window.innerWidth - 32;
-          if (fallbackWidth > 0) {
-            setContainerWidth(fallbackWidth);
-          }
-        }
-      };
-
-      // Try measuring immediately
-      measureWidth();
-
-      // Also try after a brief delay in case CSS hasn't loaded
-      setTimeout(measureWidth, 100);
-      setTimeout(measureWidth, 500);
-
-      // Setup observer for future resizes
-      resizeObserverRef.current = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const newWidth = entry.contentRect.width;
-          if (newWidth > 0) {
-            setContainerWidth(newWidth);
-          }
-        }
-      });
-      resizeObserverRef.current.observe(node);
-    }
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-      }
-    };
-  }, []);
-
-  // Load react-grid-layout v2 on client side only
+  // Set mounted immediately on client
   useEffect(() => {
     setMounted(true);
+  }, []);
 
-    // Dynamic import with error handling for v2 API
+  // Measure width with multiple strategies for reliability
+  useEffect(() => {
+    if (!mounted) return;
+
+    const measureWidth = () => {
+      // Strategy 1: Try containerRef
+      if (containerRef.current) {
+        const width = containerRef.current.offsetWidth || containerRef.current.clientWidth;
+        if (width > 0) {
+          setContainerWidth(width);
+          return;
+        }
+      }
+
+      // Strategy 2: Use window width minus padding (fallback)
+      if (typeof window !== 'undefined') {
+        const fallbackWidth = Math.max(window.innerWidth - 48, 320);
+        setContainerWidth(fallbackWidth);
+      }
+    };
+
+    // Measure immediately
+    measureWidth();
+
+    // Also measure after short delays for late-rendering containers
+    const t1 = setTimeout(measureWidth, 50);
+    const t2 = setTimeout(measureWidth, 200);
+    const t3 = setTimeout(measureWidth, 500);
+
+    // Window resize handler
+    const handleResize = () => measureWidth();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [mounted]);
+
+  // Setup ResizeObserver for the container
+  useEffect(() => {
+    if (!mounted || !containerRef.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        if (width > 0) {
+          setContainerWidth(width);
+        }
+      }
+    });
+
+    observer.observe(containerRef.current);
+    resizeObserverRef.current = observer;
+
+    return () => {
+      observer.disconnect();
+      resizeObserverRef.current = null;
+    };
+  }, [mounted]);
+
+  // Load react-grid-layout on client side
+  useEffect(() => {
+    if (!mounted) return;
+
     const loadGridLayout = async () => {
       try {
         const mod = await import('react-grid-layout');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const RGL = mod as any;
 
-        // v2 API: Use GridLayout directly (no WidthProvider, we manage width ourselves)
-        const GridLayout = RGL.GridLayout || RGL.ReactGridLayout || RGL.default;
+        // Try multiple export patterns for compatibility
+        const GridLayout = RGL.GridLayout || RGL.ReactGridLayout || RGL.default?.GridLayout || RGL.default;
 
         if (!GridLayout) {
           throw new Error('GridLayout component not found in react-grid-layout');
@@ -133,7 +146,7 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
     };
 
     loadGridLayout();
-  }, []);
+  }, [mounted]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleLayoutChange = useCallback(
@@ -226,7 +239,7 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
   // Error state
   if (loadError) {
     return (
-      <div ref={measureRef} className="relative min-h-[600px]">
+      <div ref={containerRef} className="relative min-h-[600px]">
         <div className="flex flex-col items-center justify-center h-full gap-4">
           <div className="text-4xl">⚠️</div>
           <div className="text-red-500 font-mono text-sm">Failed to load dashboard</div>
@@ -242,10 +255,12 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
     );
   }
 
-  // Loading state - wait for mount, GridComponent, AND container width
-  if (!mounted || !GridComponent || containerWidth === 0) {
+  // Loading state - wait for mount and GridComponent. Use minimum width if not measured yet
+  const effectiveWidth = containerWidth > 0 ? containerWidth : (typeof window !== 'undefined' ? Math.max(window.innerWidth - 48, 320) : 1200);
+
+  if (!mounted || !GridComponent) {
     return (
-      <div ref={measureRef} className="relative min-h-[600px]">
+      <div ref={containerRef} className="relative min-h-[600px]">
         <div className="flex items-center justify-center h-full">
           <div className="flex flex-col items-center gap-4">
             <div className="w-12 h-12 border-4 border-fud-green/20 border-t-fud-green rounded-full animate-spin" />
@@ -257,7 +272,7 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
   }
 
   return (
-    <div className="relative" ref={measureRef}>
+    <div className="relative" ref={containerRef}>
       {/* Dashboard Controls - ADMIN ONLY */}
       {isAdmin && (
         <div className="flex items-center justify-between mb-4 px-2">
@@ -318,13 +333,13 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
         </div>
       )}
 
-      {/* Grid Layout - v2 API requires explicit width */}
+      {/* Grid Layout - use effectiveWidth to prevent 0-width */}
       <GridComponent
         className="layout"
         layout={gridLayout}
         cols={COLS}
         rowHeight={ROW_HEIGHT}
-        width={containerWidth}
+        width={effectiveWidth}
         margin={MARGIN}
         containerPadding={[0, 0]}
         isDraggable={!isLocked}
