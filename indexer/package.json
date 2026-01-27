@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/api.js",
+    "start:all": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "indexer": "ts-node src/indexer.ts",
     "api": "ts-node src/api.ts",
