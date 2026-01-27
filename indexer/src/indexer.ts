@@ -46,12 +46,12 @@ function loadActiveTokens() {
     SELECT DISTINCT token_address FROM swaps
     WHERE token_address NOT IN (
       SELECT token_address FROM graduated_tokens
-      UNION
-      SELECT token_address FROM delisted_tokens
     )
-  `).all() as { token_address: string }[];
+  `).all() as any[];
 
-  rows.forEach(row => activeTokens.add(row.token_address as `0x${string}`));
+  rows.forEach((row) => {
+    activeTokens.add(row.token_address as `0x${string}`);
+  });
   console.log(`📋 Loaded ${activeTokens.size} active tokens`);
 }
 
@@ -135,20 +135,6 @@ async function handleTokenDelisted(log: Log) {
     console.log(`❌ Token Delisted: ${tokenAddress} - Reason: ${reason}`);
 
     activeTokens.delete(tokenAddress as `0x${string}`);
-
-    // Record delisting
-    const db = getDb();
-    db.prepare(`
-      INSERT OR IGNORE INTO delisted_tokens
-      (token_id, token_address, reason, block_number, timestamp)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      tokenId.toString(),
-      tokenAddress.toLowerCase(),
-      reason,
-      Number(log.blockNumber),
-      Math.floor(Date.now() / 1000)
-    );
   } catch (e) {
     console.error('Error handling TokenDelisted:', e);
   }
@@ -305,39 +291,8 @@ async function runIndexer() {
   console.log(`🌐 RPC: ${CHAIN.rpcUrl}`);
   console.log('═══════════════════════════════════════');
 
-  // Initialize database
-  initDatabase();
-
-  // Add additional tables for token tracking
-  const db = getDb();
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS launched_tokens (
-      token_id TEXT PRIMARY KEY,
-      token_address TEXT NOT NULL,
-      creator TEXT NOT NULL,
-      name TEXT NOT NULL,
-      symbol TEXT NOT NULL,
-      block_number INTEGER NOT NULL,
-      timestamp INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS graduated_tokens (
-      token_id TEXT PRIMARY KEY,
-      token_address TEXT NOT NULL,
-      liquidity_amount TEXT NOT NULL,
-      treasury_fee TEXT NOT NULL,
-      block_number INTEGER NOT NULL,
-      timestamp INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS delisted_tokens (
-      token_id TEXT PRIMARY KEY,
-      token_address TEXT NOT NULL,
-      reason TEXT,
-      block_number INTEGER NOT NULL,
-      timestamp INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_launched_creator ON launched_tokens(creator);
-    CREATE INDEX IF NOT EXISTS idx_launched_address ON launched_tokens(token_address);
-  `);
+  // Initialize database (async now with sql.js)
+  await initDatabase();
 
   // Load active tokens
   loadActiveTokens();

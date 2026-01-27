@@ -9,7 +9,7 @@ const database_1 = require("./database");
 const config_1 = require("./config");
 require("dotenv/config");
 const app = (0, express_1.default)();
-const PORT = process.env.API_PORT || 3001;
+const PORT = process.env.PORT || process.env.API_PORT || 3001;
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 // Health check
@@ -417,8 +417,8 @@ app.get('/api/fees', (req, res) => {
 // ═══════════════════════════════════════
 // START SERVER
 // ═══════════════════════════════════════
-function startServer() {
-    (0, database_1.initDatabase)();
+async function startServer() {
+    await (0, database_1.initDatabase)();
     app.listen(PORT, () => {
         console.log('═══════════════════════════════════════');
         console.log(`🌐 PUMP.FUD API Server`);

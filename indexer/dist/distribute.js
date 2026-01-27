@@ -205,12 +205,12 @@ function previewDistribution() {
     console.log(`📊 Remainder: ${(0, viem_1.formatEther)(poolAmount - totalDistributed)} PLS`);
 }
 // Schedule daily distribution
-function scheduleDailyDistribution() {
+async function scheduleDailyDistribution() {
     console.log('═══════════════════════════════════════');
     console.log('🕐 PUMP.FUD Airdrop Distributor');
     console.log(`⏰ Scheduled: Daily at ${AIRDROP_HOUR}:00 UTC`);
     console.log('═══════════════════════════════════════');
-    (0, database_1.initDatabase)();
+    await (0, database_1.initDatabase)();
     // Schedule for the configured hour
     node_cron_1.default.schedule(`0 ${AIRDROP_HOUR} * * *`, async () => {
         console.log(`\n⏰ Scheduled distribution triggered at ${new Date().toISOString()}`);
@@ -224,15 +224,13 @@ function scheduleDailyDistribution() {
 const command = process.argv[2];
 switch (command) {
     case 'preview':
-        (0, database_1.initDatabase)();
-        previewDistribution();
+        (0, database_1.initDatabase)().then(() => previewDistribution());
         break;
     case 'distribute':
-        (0, database_1.initDatabase)();
-        manualDistribute(process.argv[3]).then(() => process.exit(0));
+        (0, database_1.initDatabase)().then(() => manualDistribute(process.argv[3])).then(() => process.exit(0));
         break;
     case 'schedule':
-        scheduleDailyDistribution();
+        scheduleDailyDistribution().catch(console.error);
         break;
     default:
         console.log('PUMP.FUD Airdrop Distribution Script');

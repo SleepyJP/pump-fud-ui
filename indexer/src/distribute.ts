@@ -260,13 +260,13 @@ function previewDistribution() {
 }
 
 // Schedule daily distribution
-function scheduleDailyDistribution() {
+async function scheduleDailyDistribution() {
   console.log('═══════════════════════════════════════');
   console.log('🕐 PUMP.FUD Airdrop Distributor');
   console.log(`⏰ Scheduled: Daily at ${AIRDROP_HOUR}:00 UTC`);
   console.log('═══════════════════════════════════════');
 
-  initDatabase();
+  await initDatabase();
 
   // Schedule for the configured hour
   cron.schedule(`0 ${AIRDROP_HOUR} * * *`, async () => {
@@ -284,17 +284,15 @@ const command = process.argv[2];
 
 switch (command) {
   case 'preview':
-    initDatabase();
-    previewDistribution();
+    initDatabase().then(() => previewDistribution());
     break;
 
   case 'distribute':
-    initDatabase();
-    manualDistribute(process.argv[3]).then(() => process.exit(0));
+    initDatabase().then(() => manualDistribute(process.argv[3])).then(() => process.exit(0));
     break;
 
   case 'schedule':
-    scheduleDailyDistribution();
+    scheduleDailyDistribution().catch(console.error);
     break;
 
   default:

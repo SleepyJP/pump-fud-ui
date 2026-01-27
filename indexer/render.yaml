@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: pump-fud-indexer
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: RPC_URL
+        value: https://rpc.pulsechain.com
+      - key: FACTORY_ADDRESS
+        value: 0x7e65383639d8418E826a78a2f5C784cd4Bdb92D7
+      - key: TREASURY_WALLET
+        value: 0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B
+      - key: START_BLOCK
+        value: "25500000"
+      - key: DB_PATH
+        value: ./data/pump-fud.db

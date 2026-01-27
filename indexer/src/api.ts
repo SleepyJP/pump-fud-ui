@@ -464,8 +464,8 @@ app.get('/api/fees', (req, res) => {
 // START SERVER
 // ═══════════════════════════════════════
 
-function startServer() {
-  initDatabase();
+async function startServer() {
+  await initDatabase();
 
   app.listen(PORT, () => {
     console.log('═══════════════════════════════════════');

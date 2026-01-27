@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -10,13 +10,83 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
+let sqlDb: SqlJsDatabase;
 
-// Initialize schema
-export function initDatabase() {
-  // Swaps table - tracks every swap
-  db.exec(`
+// Wrapper to mimic better-sqlite3 API
+class DatabaseWrapper {
+  prepare(sql: string) {
+    return {
+      run: (...params: any[]) => {
+        sqlDb.run(sql, params);
+        saveDatabase();
+      },
+      get: (...params: any[]): any => {
+        const stmt = sqlDb.prepare(sql);
+        if (params.length) stmt.bind(params);
+        if (stmt.step()) {
+          const row = stmt.getAsObject();
+          stmt.free();
+          return row;
+        }
+        stmt.free();
+        return undefined;
+      },
+      all: (...params: any[]): any[] => {
+        const stmt = sqlDb.prepare(sql);
+        if (params.length) stmt.bind(params);
+        const rows: any[] = [];
+        while (stmt.step()) {
+          rows.push(stmt.getAsObject());
+        }
+        stmt.free();
+        return rows;
+      },
+    };
+  }
+
+  run(sql: string, params?: any[]) {
+    if (params && params.length) {
+      sqlDb.run(sql, params);
+    } else {
+      sqlDb.run(sql);
+    }
+    saveDatabase();
+  }
+
+  exec(sql: string) {
+    sqlDb.run(sql);
+    saveDatabase();
+  }
+}
+
+const db = new DatabaseWrapper();
+
+// Save database to file
+function saveDatabase() {
+  if (sqlDb) {
+    const data = sqlDb.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(DB_PATH, buffer);
+  }
+}
+
+// Auto-save every 30 seconds
+let saveInterval: NodeJS.Timeout | null = null;
+
+// Initialize database
+export async function initDatabase() {
+  const SQL = await initSqlJs();
+
+  // Load existing database if it exists
+  if (fs.existsSync(DB_PATH)) {
+    const buffer = fs.readFileSync(DB_PATH);
+    sqlDb = new SQL.Database(buffer);
+  } else {
+    sqlDb = new SQL.Database();
+  }
+
+  // Initialize schema
+  sqlDb.run(`
     CREATE TABLE IF NOT EXISTS swaps (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       tx_hash TEXT UNIQUE NOT NULL,
@@ -36,8 +106,7 @@ export function initDatabase() {
     )
   `);
 
-  // User stats - aggregated per user
-  db.exec(`
+  sqlDb.run(`
     CREATE TABLE IF NOT EXISTS user_stats (
       address TEXT PRIMARY KEY,
       total_buys TEXT DEFAULT '0',
@@ -56,8 +125,7 @@ export function initDatabase() {
     )
   `);
 
-  // Airdrop pool - tracks daily accumulation
-  db.exec(`
+  sqlDb.run(`
     CREATE TABLE IF NOT EXISTS airdrop_pool (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
@@ -69,8 +137,7 @@ export function initDatabase() {
     )
   `);
 
-  // Airdrop distributions - individual payouts
-  db.exec(`
+  sqlDb.run(`
     CREATE TABLE IF NOT EXISTS airdrop_distributions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       pool_id INTEGER NOT NULL,
@@ -83,8 +150,7 @@ export function initDatabase() {
     )
   `);
 
-  // Referrals table
-  db.exec(`
+  sqlDb.run(`
     CREATE TABLE IF NOT EXISTS referrals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       referrer_address TEXT NOT NULL,
@@ -95,8 +161,7 @@ export function initDatabase() {
     )
   `);
 
-  // Token trades for ROI tracking
-  db.exec(`
+  sqlDb.run(`
     CREATE TABLE IF NOT EXISTS user_token_positions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_address TEXT NOT NULL,
@@ -110,8 +175,7 @@ export function initDatabase() {
     )
   `);
 
-  // Indexer state
-  db.exec(`
+  sqlDb.run(`
     CREATE TABLE IF NOT EXISTS indexer_state (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -119,14 +183,46 @@ export function initDatabase() {
     )
   `);
 
-  // Create indices for faster queries
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_swaps_trader ON swaps(trader_address);
-    CREATE INDEX IF NOT EXISTS idx_swaps_token ON swaps(token_address);
-    CREATE INDEX IF NOT EXISTS idx_swaps_block ON swaps(block_number);
-    CREATE INDEX IF NOT EXISTS idx_user_stats_pool ON user_stats(user_pool_contribution);
-    CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_address);
+  sqlDb.run(`
+    CREATE TABLE IF NOT EXISTS launched_tokens (
+      token_id INTEGER NOT NULL,
+      token_address TEXT PRIMARY KEY,
+      creator TEXT NOT NULL,
+      name TEXT,
+      symbol TEXT,
+      block_number INTEGER NOT NULL,
+      timestamp INTEGER NOT NULL
+    )
   `);
+
+  sqlDb.run(`
+    CREATE TABLE IF NOT EXISTS graduated_tokens (
+      token_id INTEGER NOT NULL,
+      token_address TEXT PRIMARY KEY,
+      liquidity_amount TEXT NOT NULL,
+      treasury_fee TEXT NOT NULL,
+      block_number INTEGER NOT NULL,
+      timestamp INTEGER NOT NULL
+    )
+  `);
+
+  // Create indices
+  sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_swaps_trader ON swaps(trader_address)`);
+  sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_swaps_token ON swaps(token_address)`);
+  sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_swaps_block ON swaps(block_number)`);
+  sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_user_stats_pool ON user_stats(user_pool_contribution)`);
+  sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_address)`);
+
+  // Save and start auto-save
+  saveDatabase();
+  if (!saveInterval) {
+    saveInterval = setInterval(saveDatabase, 30000);
+  }
+
+  // Save on exit
+  process.on('exit', saveDatabase);
+  process.on('SIGINT', () => { saveDatabase(); process.exit(); });
+  process.on('SIGTERM', () => { saveDatabase(); process.exit(); });
 
   console.log('✅ Database initialized');
 }
@@ -152,14 +248,12 @@ export function recordSwap(swap: {
   referrerAddress?: string;
   referrerFee?: bigint;
 }) {
-  const stmt = db.prepare(`
+  db.prepare(`
     INSERT OR IGNORE INTO swaps
     (tx_hash, block_number, timestamp, token_address, trader_address, is_buy,
      amount_in, amount_out, fee_amount, user_fee, treasury_fee, referrer_address, referrer_fee)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  stmt.run(
+  `).run(
     swap.txHash,
     swap.blockNumber,
     swap.timestamp,
@@ -194,6 +288,11 @@ export function recordSwap(swap: {
     swap.amountIn,
     swap.amountOut
   );
+}
+
+// Generate referral code from address
+function generateReferralCode(address: string): string {
+  return address.slice(2, 10).toUpperCase();
 }
 
 // Update user aggregated stats
@@ -240,10 +339,7 @@ function updateUserStats(
 function updateAirdropPool(userFee: bigint, treasuryFee: bigint) {
   const today = new Date().toISOString().split('T')[0];
 
-  // Ensure today's pool exists
-  db.prepare(`
-    INSERT OR IGNORE INTO airdrop_pool (date) VALUES (?)
-  `).run(today);
+  db.prepare(`INSERT OR IGNORE INTO airdrop_pool (date) VALUES (?)`).run(today);
 
   db.prepare(`
     UPDATE airdrop_pool
@@ -276,14 +372,12 @@ function updateTokenPosition(
   const user = userAddress.toLowerCase();
   const token = tokenAddress.toLowerCase();
 
-  // Ensure position exists
   db.prepare(`
     INSERT OR IGNORE INTO user_token_positions (user_address, token_address)
     VALUES (?, ?)
   `).run(user, token);
 
   if (isBuy) {
-    // Buying tokens: amountIn is PLS, amountOut is tokens
     db.prepare(`
       UPDATE user_token_positions
       SET total_bought = CAST((CAST(total_bought AS INTEGER) + ?) AS TEXT),
@@ -292,7 +386,6 @@ function updateTokenPosition(
       WHERE user_address = ? AND token_address = ?
     `).run(amountOut.toString(), amountIn.toString(), user, token);
   } else {
-    // Selling tokens: amountIn is tokens, amountOut is PLS
     db.prepare(`
       UPDATE user_token_positions
       SET total_sold = CAST((CAST(total_sold AS INTEGER) + ?) AS TEXT),
@@ -301,11 +394,6 @@ function updateTokenPosition(
       WHERE user_address = ? AND token_address = ?
     `).run(amountIn.toString(), amountOut.toString(), user, token);
   }
-}
-
-// Generate referral code from address
-function generateReferralCode(address: string): string {
-  return address.slice(2, 10).toUpperCase();
 }
 
 // Record referral
@@ -319,15 +407,8 @@ export function recordReferral(referrerAddress: string, referredAddress: string)
       VALUES (?, ?, strftime('%s', 'now'))
     `).run(referrer, referred);
 
-    // Update user's referred_by
-    db.prepare(`
-      UPDATE user_stats SET referred_by = ? WHERE address = ?
-    `).run(referrer, referred);
-
-    // Update referrer's referral count
-    db.prepare(`
-      UPDATE user_stats SET referral_count = referral_count + 1 WHERE address = ?
-    `).run(referrer);
+    db.prepare(`UPDATE user_stats SET referred_by = ? WHERE address = ?`).run(referrer, referred);
+    db.prepare(`UPDATE user_stats SET referral_count = referral_count + 1 WHERE address = ?`).run(referrer);
 
     return true;
   } catch (e) {
@@ -416,8 +497,8 @@ export function getROILeaderboard(limit = 100): {
 
     return {
       address: row.user_address,
-      totalInvested: row.total_invested || '0',
-      realizedPnL: row.realized_pnl || '0',
+      totalInvested: (row.total_invested || '0').toString(),
+      realizedPnL: (row.realized_pnl || '0').toString(),
       tokenCount: row.token_count,
       roiPercent,
       rank: index + 1,
@@ -428,9 +509,7 @@ export function getROILeaderboard(limit = 100): {
 // Get user stats
 export function getUserStats(address: string) {
   const addr = address.toLowerCase();
-  const row = db.prepare(`
-    SELECT * FROM user_stats WHERE address = ?
-  `).get(addr) as any;
+  const row = db.prepare(`SELECT * FROM user_stats WHERE address = ?`).get(addr) as any;
 
   if (!row) return null;
 
@@ -453,9 +532,7 @@ export function getUserStats(address: string) {
 // Get today's airdrop pool
 export function getTodayAirdropPool() {
   const today = new Date().toISOString().split('T')[0];
-  const row = db.prepare(`
-    SELECT * FROM airdrop_pool WHERE date = ?
-  `).get(today) as any;
+  const row = db.prepare(`SELECT * FROM airdrop_pool WHERE date = ?`).get(today) as any;
 
   if (!row) {
     return {
@@ -474,7 +551,7 @@ export function getTodayAirdropPool() {
   };
 }
 
-// Get total pool contribution (for calculating airdrop shares)
+// Get total pool contribution
 export function getTotalPoolContribution(): bigint {
   const row = db.prepare(`
     SELECT SUM(CAST(user_pool_contribution AS INTEGER)) as total
@@ -501,17 +578,13 @@ export function setIndexerState(key: string, value: string) {
 // Get referrer for an address
 export function getReferrer(address: string): string | null {
   const addr = address.toLowerCase();
-  const row = db.prepare(`
-    SELECT referred_by FROM user_stats WHERE address = ?
-  `).get(addr) as any;
+  const row = db.prepare(`SELECT referred_by FROM user_stats WHERE address = ?`).get(addr) as any;
   return row?.referred_by || null;
 }
 
 // Find referrer by code
 export function findReferrerByCode(code: string): string | null {
-  const row = db.prepare(`
-    SELECT address FROM user_stats WHERE referral_code = ?
-  `).get(code.toUpperCase()) as any;
+  const row = db.prepare(`SELECT address FROM user_stats WHERE referral_code = ?`).get(code.toUpperCase()) as any;
   return row?.address || null;
 }
 

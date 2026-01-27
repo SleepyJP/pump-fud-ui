@@ -17,7 +17,7 @@ exports.getIndexerState = getIndexerState;
 exports.setIndexerState = setIndexerState;
 exports.getReferrer = getReferrer;
 exports.findReferrerByCode = findReferrerByCode;
-const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
+const sql_js_1 = __importDefault(require("sql.js"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const DB_PATH = process.env.DB_PATH || './data/pump-fud.db';
@@ -26,12 +26,78 @@ const dataDir = path_1.default.dirname(DB_PATH);
 if (!fs_1.default.existsSync(dataDir)) {
     fs_1.default.mkdirSync(dataDir, { recursive: true });
 }
-const db = new better_sqlite3_1.default(DB_PATH);
-db.pragma('journal_mode = WAL');
-// Initialize schema
-function initDatabase() {
-    // Swaps table - tracks every swap
-    db.exec(`
+let sqlDb;
+// Wrapper to mimic better-sqlite3 API
+class DatabaseWrapper {
+    prepare(sql) {
+        return {
+            run: (...params) => {
+                sqlDb.run(sql, params);
+                saveDatabase();
+            },
+            get: (...params) => {
+                const stmt = sqlDb.prepare(sql);
+                if (params.length)
+                    stmt.bind(params);
+                if (stmt.step()) {
+                    const row = stmt.getAsObject();
+                    stmt.free();
+                    return row;
+                }
+                stmt.free();
+                return undefined;
+            },
+            all: (...params) => {
+                const stmt = sqlDb.prepare(sql);
+                if (params.length)
+                    stmt.bind(params);
+                const rows = [];
+                while (stmt.step()) {
+                    rows.push(stmt.getAsObject());
+                }
+                stmt.free();
+                return rows;
+            },
+        };
+    }
+    run(sql, params) {
+        if (params && params.length) {
+            sqlDb.run(sql, params);
+        }
+        else {
+            sqlDb.run(sql);
+        }
+        saveDatabase();
+    }
+    exec(sql) {
+        sqlDb.run(sql);
+        saveDatabase();
+    }
+}
+const db = new DatabaseWrapper();
+// Save database to file
+function saveDatabase() {
+    if (sqlDb) {
+        const data = sqlDb.export();
+        const buffer = Buffer.from(data);
+        fs_1.default.writeFileSync(DB_PATH, buffer);
+    }
+}
+// Auto-save every 30 seconds
+let saveInterval = null;
+// Initialize database
+async function initDatabase() {
+    const SQL = await (0, sql_js_1.default)();
+    // Load existing database if it exists
+    if (fs_1.default.existsSync(DB_PATH)) {
+        const buffer = fs_1.default.readFileSync(DB_PATH);
+        sqlDb = new SQL.Database(buffer);
+    }
+    else {
+        sqlDb = new SQL.Database();
+    }
+    // Initialize schema
+    sqlDb.run(`
     CREATE TABLE IF NOT EXISTS swaps (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       tx_hash TEXT UNIQUE NOT NULL,
@@ -50,8 +116,7 @@ function initDatabase() {
       created_at INTEGER DEFAULT (strftime('%s', 'now'))
     )
   `);
-    // User stats - aggregated per user
-    db.exec(`
+    sqlDb.run(`
     CREATE TABLE IF NOT EXISTS user_stats (
       address TEXT PRIMARY KEY,
       total_buys TEXT DEFAULT '0',
@@ -69,8 +134,7 @@ function initDatabase() {
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     )
   `);
-    // Airdrop pool - tracks daily accumulation
-    db.exec(`
+    sqlDb.run(`
     CREATE TABLE IF NOT EXISTS airdrop_pool (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
@@ -81,8 +145,7 @@ function initDatabase() {
       created_at INTEGER DEFAULT (strftime('%s', 'now'))
     )
   `);
-    // Airdrop distributions - individual payouts
-    db.exec(`
+    sqlDb.run(`
     CREATE TABLE IF NOT EXISTS airdrop_distributions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       pool_id INTEGER NOT NULL,
@@ -94,8 +157,7 @@ function initDatabase() {
       FOREIGN KEY (pool_id) REFERENCES airdrop_pool(id)
     )
   `);
-    // Referrals table
-    db.exec(`
+    sqlDb.run(`
     CREATE TABLE IF NOT EXISTS referrals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       referrer_address TEXT NOT NULL,
@@ -105,8 +167,7 @@ function initDatabase() {
       UNIQUE(referred_address)
     )
   `);
-    // Token trades for ROI tracking
-    db.exec(`
+    sqlDb.run(`
     CREATE TABLE IF NOT EXISTS user_token_positions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_address TEXT NOT NULL,
@@ -119,22 +180,49 @@ function initDatabase() {
       UNIQUE(user_address, token_address)
     )
   `);
-    // Indexer state
-    db.exec(`
+    sqlDb.run(`
     CREATE TABLE IF NOT EXISTS indexer_state (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     )
   `);
-    // Create indices for faster queries
-    db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_swaps_trader ON swaps(trader_address);
-    CREATE INDEX IF NOT EXISTS idx_swaps_token ON swaps(token_address);
-    CREATE INDEX IF NOT EXISTS idx_swaps_block ON swaps(block_number);
-    CREATE INDEX IF NOT EXISTS idx_user_stats_pool ON user_stats(user_pool_contribution);
-    CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_address);
+    sqlDb.run(`
+    CREATE TABLE IF NOT EXISTS launched_tokens (
+      token_id INTEGER NOT NULL,
+      token_address TEXT PRIMARY KEY,
+      creator TEXT NOT NULL,
+      name TEXT,
+      symbol TEXT,
+      block_number INTEGER NOT NULL,
+      timestamp INTEGER NOT NULL
+    )
   `);
+    sqlDb.run(`
+    CREATE TABLE IF NOT EXISTS graduated_tokens (
+      token_id INTEGER NOT NULL,
+      token_address TEXT PRIMARY KEY,
+      liquidity_amount TEXT NOT NULL,
+      treasury_fee TEXT NOT NULL,
+      block_number INTEGER NOT NULL,
+      timestamp INTEGER NOT NULL
+    )
+  `);
+    // Create indices
+    sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_swaps_trader ON swaps(trader_address)`);
+    sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_swaps_token ON swaps(token_address)`);
+    sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_swaps_block ON swaps(block_number)`);
+    sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_user_stats_pool ON user_stats(user_pool_contribution)`);
+    sqlDb.run(`CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_address)`);
+    // Save and start auto-save
+    saveDatabase();
+    if (!saveInterval) {
+        saveInterval = setInterval(saveDatabase, 30000);
+    }
+    // Save on exit
+    process.on('exit', saveDatabase);
+    process.on('SIGINT', () => { saveDatabase(); process.exit(); });
+    process.on('SIGTERM', () => { saveDatabase(); process.exit(); });
     console.log('✅ Database initialized');
 }
 // Helper functions
@@ -143,13 +231,12 @@ function getDb() {
 }
 // Record a swap
 function recordSwap(swap) {
-    const stmt = db.prepare(`
+    db.prepare(`
     INSERT OR IGNORE INTO swaps
     (tx_hash, block_number, timestamp, token_address, trader_address, is_buy,
      amount_in, amount_out, fee_amount, user_fee, treasury_fee, referrer_address, referrer_fee)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-    stmt.run(swap.txHash, swap.blockNumber, swap.timestamp, swap.tokenAddress.toLowerCase(), swap.traderAddress.toLowerCase(), swap.isBuy ? 1 : 0, swap.amountIn.toString(), swap.amountOut.toString(), swap.feeAmount.toString(), swap.userFee.toString(), swap.treasuryFee.toString(), swap.referrerAddress?.toLowerCase() || null, swap.referrerFee?.toString() || null);
+  `).run(swap.txHash, swap.blockNumber, swap.timestamp, swap.tokenAddress.toLowerCase(), swap.traderAddress.toLowerCase(), swap.isBuy ? 1 : 0, swap.amountIn.toString(), swap.amountOut.toString(), swap.feeAmount.toString(), swap.userFee.toString(), swap.treasuryFee.toString(), swap.referrerAddress?.toLowerCase() || null, swap.referrerFee?.toString() || null);
     // Update user stats
     updateUserStats(swap.traderAddress, swap.isBuy, swap.feeAmount, swap.userFee);
     // Update today's airdrop pool
@@ -160,6 +247,10 @@ function recordSwap(swap) {
     }
     // Update token position for ROI tracking
     updateTokenPosition(swap.traderAddress, swap.tokenAddress, swap.isBuy, swap.amountIn, swap.amountOut);
+}
+// Generate referral code from address
+function generateReferralCode(address) {
+    return address.slice(2, 10).toUpperCase();
 }
 // Update user aggregated stats
 function updateUserStats(address, isBuy, totalFee, userPoolFee) {
@@ -197,10 +288,7 @@ function updateUserStats(address, isBuy, totalFee, userPoolFee) {
 // Update airdrop pool for today
 function updateAirdropPool(userFee, treasuryFee) {
     const today = new Date().toISOString().split('T')[0];
-    // Ensure today's pool exists
-    db.prepare(`
-    INSERT OR IGNORE INTO airdrop_pool (date) VALUES (?)
-  `).run(today);
+    db.prepare(`INSERT OR IGNORE INTO airdrop_pool (date) VALUES (?)`).run(today);
     db.prepare(`
     UPDATE airdrop_pool
     SET total_user_fees = CAST((CAST(total_user_fees AS INTEGER) + ?) AS TEXT),
@@ -222,13 +310,11 @@ function updateReferrerEarnings(referrerAddress, amount) {
 function updateTokenPosition(userAddress, tokenAddress, isBuy, amountIn, amountOut) {
     const user = userAddress.toLowerCase();
     const token = tokenAddress.toLowerCase();
-    // Ensure position exists
     db.prepare(`
     INSERT OR IGNORE INTO user_token_positions (user_address, token_address)
     VALUES (?, ?)
   `).run(user, token);
     if (isBuy) {
-        // Buying tokens: amountIn is PLS, amountOut is tokens
         db.prepare(`
       UPDATE user_token_positions
       SET total_bought = CAST((CAST(total_bought AS INTEGER) + ?) AS TEXT),
@@ -238,7 +324,6 @@ function updateTokenPosition(userAddress, tokenAddress, isBuy, amountIn, amountO
     `).run(amountOut.toString(), amountIn.toString(), user, token);
     }
     else {
-        // Selling tokens: amountIn is tokens, amountOut is PLS
         db.prepare(`
       UPDATE user_token_positions
       SET total_sold = CAST((CAST(total_sold AS INTEGER) + ?) AS TEXT),
@@ -247,10 +332,6 @@ function updateTokenPosition(userAddress, tokenAddress, isBuy, amountIn, amountO
       WHERE user_address = ? AND token_address = ?
     `).run(amountIn.toString(), amountOut.toString(), user, token);
     }
-}
-// Generate referral code from address
-function generateReferralCode(address) {
-    return address.slice(2, 10).toUpperCase();
 }
 // Record referral
 function recordReferral(referrerAddress, referredAddress) {
@@ -261,14 +342,8 @@ function recordReferral(referrerAddress, referredAddress) {
       INSERT OR IGNORE INTO referrals (referrer_address, referred_address, timestamp)
       VALUES (?, ?, strftime('%s', 'now'))
     `).run(referrer, referred);
-        // Update user's referred_by
-        db.prepare(`
-      UPDATE user_stats SET referred_by = ? WHERE address = ?
-    `).run(referrer, referred);
-        // Update referrer's referral count
-        db.prepare(`
-      UPDATE user_stats SET referral_count = referral_count + 1 WHERE address = ?
-    `).run(referrer);
+        db.prepare(`UPDATE user_stats SET referred_by = ? WHERE address = ?`).run(referrer, referred);
+        db.prepare(`UPDATE user_stats SET referral_count = referral_count + 1 WHERE address = ?`).run(referrer);
         return true;
     }
     catch (e) {
@@ -331,8 +406,8 @@ function getROILeaderboard(limit = 100) {
             : 0;
         return {
             address: row.user_address,
-            totalInvested: row.total_invested || '0',
-            realizedPnL: row.realized_pnl || '0',
+            totalInvested: (row.total_invested || '0').toString(),
+            realizedPnL: (row.realized_pnl || '0').toString(),
             tokenCount: row.token_count,
             roiPercent,
             rank: index + 1,
@@ -342,9 +417,7 @@ function getROILeaderboard(limit = 100) {
 // Get user stats
 function getUserStats(address) {
     const addr = address.toLowerCase();
-    const row = db.prepare(`
-    SELECT * FROM user_stats WHERE address = ?
-  `).get(addr);
+    const row = db.prepare(`SELECT * FROM user_stats WHERE address = ?`).get(addr);
     if (!row)
         return null;
     return {
@@ -365,9 +438,7 @@ function getUserStats(address) {
 // Get today's airdrop pool
 function getTodayAirdropPool() {
     const today = new Date().toISOString().split('T')[0];
-    const row = db.prepare(`
-    SELECT * FROM airdrop_pool WHERE date = ?
-  `).get(today);
+    const row = db.prepare(`SELECT * FROM airdrop_pool WHERE date = ?`).get(today);
     if (!row) {
         return {
             date: today,
@@ -383,7 +454,7 @@ function getTodayAirdropPool() {
         distributed: row.distributed === 1,
     };
 }
-// Get total pool contribution (for calculating airdrop shares)
+// Get total pool contribution
 function getTotalPoolContribution() {
     const row = db.prepare(`
     SELECT SUM(CAST(user_pool_contribution AS INTEGER)) as total
@@ -406,16 +477,12 @@ function setIndexerState(key, value) {
 // Get referrer for an address
 function getReferrer(address) {
     const addr = address.toLowerCase();
-    const row = db.prepare(`
-    SELECT referred_by FROM user_stats WHERE address = ?
-  `).get(addr);
+    const row = db.prepare(`SELECT referred_by FROM user_stats WHERE address = ?`).get(addr);
     return row?.referred_by || null;
 }
 // Find referrer by code
 function findReferrerByCode(code) {
-    const row = db.prepare(`
-    SELECT address FROM user_stats WHERE referral_code = ?
-  `).get(code.toUpperCase());
+    const row = db.prepare(`SELECT address FROM user_stats WHERE referral_code = ?`).get(code.toUpperCase());
     return row?.address || null;
 }
 exports.default = db;
