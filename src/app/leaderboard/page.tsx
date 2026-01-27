@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { useAccount, useReadContract } from 'wagmi';
+import { useAccount } from 'wagmi';
 import Link from 'next/link';
 import {
   Crown,
@@ -9,55 +9,26 @@ import {
   TrendingUp,
   Users,
   Coins,
-  ExternalLink,
   Copy,
   Check,
   Zap,
   Gift,
   Link2,
   Percent,
-  ChevronRight,
   Rocket,
   ArrowUpRight,
   ArrowDownRight,
   Share2,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { FACTORY_ABI } from '@/config/abis';
-import { CONTRACTS } from '@/config/wagmi';
 import { formatAddress, formatPLS } from '@/lib/utils';
+import { useLeaderboard } from '@/hooks/useLeaderboard';
 
 type LeaderboardTab = 'airdrop' | 'referral' | 'roi';
-
-interface AirdropEntry {
-  address: `0x${string}`;
-  totalFeesPaid: bigint;
-  projectedAirdrop: bigint;
-  rank: number;
-  swapCount: number;
-}
-
-interface ReferralEntry {
-  address: `0x${string}`;
-  referralCode: string;
-  referralCount: number;
-  totalEarnings: bigint;
-  pendingEarnings: bigint;
-  rank: number;
-}
-
-interface ROIEntry {
-  address: `0x${string}`;
-  totalInvested: bigint;
-  currentValue: bigint;
-  realizedPnL: bigint;
-  unrealizedPnL: bigint;
-  roiPercent: number;
-  rank: number;
-  tokenCount: number;
-}
 
 export default function LeaderboardPage() {
   const { address, isConnected } = useAccount();
@@ -65,70 +36,35 @@ export default function LeaderboardPage() {
   const [copied, setCopied] = useState(false);
   const [referralLink, setReferralLink] = useState('');
 
-  // Mock data - would come from contract/indexer in production
-  const [airdropLeaderboard, setAirdropLeaderboard] = useState<AirdropEntry[]>([]);
-  const [referralLeaderboard, setReferralLeaderboard] = useState<ReferralEntry[]>([]);
-  const [roiLeaderboard, setROILeaderboard] = useState<ROIEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Use the indexer API hook
+  const {
+    airdropLeaderboard,
+    referralLeaderboard,
+    roiLeaderboard,
+    userStats,
+    userRank,
+    poolInfo,
+    isLoading,
+    error,
+    refetch,
+  } = useLeaderboard(address);
 
-  // Platform stats
-  const [platformStats, setPlatformStats] = useState({
-    totalFees24h: BigInt(0),
-    totalAirdropPool: BigInt(0),
-    nextAirdropTime: Date.now() + 12 * 60 * 60 * 1000, // 12 hours from now
-    totalReferralEarnings: BigInt(0),
-    totalUsers: 0,
-  });
+  // Calculate next airdrop time (midnight UTC)
+  const nextAirdropTime = useMemo(() => {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    tomorrow.setUTCHours(0, 0, 0, 0);
+    return tomorrow.getTime();
+  }, []);
 
   // Generate referral link for connected user
   useEffect(() => {
     if (address) {
-      // Referral code is first 8 chars of address + random suffix
       const code = address.slice(2, 10).toUpperCase();
       setReferralLink(`https://pump-fud-ui.vercel.app/?ref=${code}`);
     }
   }, [address]);
-
-  // Load leaderboard data
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-
-      // In production, this would fetch from:
-      // 1. Contract events (FeesPaid, ReferralEarnings)
-      // 2. Indexer/subgraph for aggregated data
-      // 3. Backend API for computed rankings
-
-      // Mock data for demonstration
-      const mockAirdrop: AirdropEntry[] = [
-        // Empty for now - will populate when users start trading
-      ];
-
-      const mockReferral: ReferralEntry[] = [
-        // Empty for now
-      ];
-
-      const mockROI: ROIEntry[] = [
-        // Empty for now
-      ];
-
-      setAirdropLeaderboard(mockAirdrop);
-      setReferralLeaderboard(mockReferral);
-      setROILeaderboard(mockROI);
-
-      setPlatformStats({
-        totalFees24h: BigInt(0),
-        totalAirdropPool: BigInt(0),
-        nextAirdropTime: Date.now() + 12 * 60 * 60 * 1000,
-        totalReferralEarnings: BigInt(0),
-        totalUsers: 0,
-      });
-
-      setIsLoading(false);
-    };
-
-    loadData();
-  }, []);
 
   // Copy referral link
   const copyReferralLink = () => {
@@ -146,22 +82,22 @@ export default function LeaderboardPage() {
     return `${hours}h ${minutes}m`;
   };
 
-  // User's own stats
-  const userAirdropStats = useMemo(() => {
+  // Find user in leaderboards
+  const userAirdropEntry = useMemo(() => {
     if (!address) return null;
     return airdropLeaderboard.find(
       (e) => e.address.toLowerCase() === address.toLowerCase()
     );
   }, [airdropLeaderboard, address]);
 
-  const userReferralStats = useMemo(() => {
+  const userReferralEntry = useMemo(() => {
     if (!address) return null;
     return referralLeaderboard.find(
       (e) => e.address.toLowerCase() === address.toLowerCase()
     );
   }, [referralLeaderboard, address]);
 
-  const userROIStats = useMemo(() => {
+  const userROIEntry = useMemo(() => {
     if (!address) return null;
     return roiLeaderboard.find(
       (e) => e.address.toLowerCase() === address.toLowerCase()
@@ -194,6 +130,14 @@ export default function LeaderboardPage() {
     }
   };
 
+  // Calculate estimated airdrop share
+  const estimatedAirdrop = useMemo(() => {
+    if (!userRank || !poolInfo) return BigInt(0);
+    const poolAmount = BigInt(poolInfo.totalUserFees || '0');
+    const share = userRank.estimatedShare / 100; // Convert from percentage
+    return BigInt(Math.floor(Number(poolAmount) * share));
+  }, [userRank, poolInfo]);
+
   return (
     <div className="min-h-screen relative">
       {/* Full-bleed background */}
@@ -225,6 +169,16 @@ export default function LeaderboardPage() {
           <p className="text-text-muted font-mono text-sm">
             Earn airdrops, referral rewards & track your ROI
           </p>
+          {error && (
+            <div className="mt-4 flex items-center justify-center gap-2 text-fud-orange">
+              <AlertCircle size={16} />
+              <span className="text-sm font-mono">API offline - showing cached data</span>
+              <Button size="sm" variant="ghost" onClick={refetch} className="gap-1">
+                <RefreshCw size={14} />
+                Retry
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Tab Navigation */}
@@ -283,10 +237,10 @@ export default function LeaderboardPage() {
                   <div className="text-center">
                     <p className="text-text-muted text-xs font-mono mb-1">Next Airdrop In</p>
                     <p className="font-display text-3xl text-fud-green">
-                      {formatTimeUntil(platformStats.nextAirdropTime)}
+                      {formatTimeUntil(nextAirdropTime)}
                     </p>
                     <p className="text-text-muted text-xs font-mono mt-1">
-                      Pool: {formatPLS(platformStats.totalAirdropPool)} PLS
+                      Pool: {formatPLS(BigInt(poolInfo?.totalUserFees || '0'))} PLS
                     </p>
                   </div>
                 </div>
@@ -313,9 +267,9 @@ export default function LeaderboardPage() {
               <Card className="p-4 text-center bg-dark-secondary/80">
                 <Coins className="w-8 h-8 mx-auto mb-2 text-yellow-400" />
                 <p className="text-2xl font-display text-yellow-400">
-                  {formatPLS(platformStats.totalFees24h)}
+                  {formatPLS(BigInt(poolInfo?.totalUserFees || '0'))}
                 </p>
-                <p className="text-xs text-text-muted font-mono">24h Fees</p>
+                <p className="text-xs text-text-muted font-mono">Today's Pool</p>
               </Card>
             </div>
 
@@ -335,25 +289,25 @@ export default function LeaderboardPage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-fud-green">
-                        #{userAirdropStats?.rank || '--'}
+                        #{userRank?.rank || userAirdropEntry?.rank || '--'}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Your Rank</p>
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-text-primary">
-                        {userAirdropStats ? formatPLS(userAirdropStats.totalFeesPaid) : '0'}
+                        {formatPLS(BigInt(userStats?.totalFeesPaid || '0'))}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Fees Paid</p>
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-fud-green">
-                        {userAirdropStats ? formatPLS(userAirdropStats.projectedAirdrop) : '0'}
+                        {formatPLS(estimatedAirdrop)}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Est. Airdrop</p>
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-text-primary">
-                        {userAirdropStats?.swapCount || 0}
+                        {userStats?.swapCount || 0}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Swaps</p>
                     </div>
@@ -402,7 +356,7 @@ export default function LeaderboardPage() {
                         </div>
                         <div className="flex-1">
                           <p className="font-mono text-sm text-text-primary">
-                            {formatAddress(entry.address)}
+                            {formatAddress(entry.address as `0x${string}`)}
                           </p>
                           <p className="text-xs text-text-muted font-mono">
                             {entry.swapCount} swaps
@@ -410,9 +364,9 @@ export default function LeaderboardPage() {
                         </div>
                         <div className="text-right">
                           <p className="font-display text-lg text-fud-green">
-                            {formatPLS(entry.projectedAirdrop)} PLS
+                            {formatPLS(BigInt(entry.userPoolContribution))} PLS
                           </p>
-                          <p className="text-xs text-text-muted font-mono">Est. Airdrop</p>
+                          <p className="text-xs text-text-muted font-mono">Pool Contribution</p>
                         </div>
                       </div>
                     ))}
@@ -435,14 +389,14 @@ export default function LeaderboardPage() {
                       🔗 Referral Program
                     </h3>
                     <p className="text-text-muted text-sm font-mono max-w-md">
-                      Share your referral link and earn a percentage of fees from everyone you refer.
-                      Earnings split between you and the platform.
+                      Share your referral link and earn 0.25% of fees from everyone you refer.
+                      Earnings are paid instantly when your referrals trade!
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-text-muted text-xs font-mono mb-1">Total Referral Payouts</p>
+                    <p className="text-text-muted text-xs font-mono mb-1">Your Referral Earnings</p>
                     <p className="font-display text-3xl text-fud-purple">
-                      {formatPLS(platformStats.totalReferralEarnings)} PLS
+                      {formatPLS(BigInt(userStats?.referralEarnings || '0'))} PLS
                     </p>
                   </div>
                 </div>
@@ -469,34 +423,34 @@ export default function LeaderboardPage() {
                     </Button>
                   </div>
                   <p className="text-text-muted text-xs font-mono mt-2">
-                    Share this link. When people trade using your link, you earn rewards!
+                    Share this link. When people trade using your link, you earn 0.25% of their fees!
                   </p>
 
                   {/* Your Referral Stats */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-fud-purple">
-                        #{userReferralStats?.rank || '--'}
+                        #{userReferralEntry?.rank || '--'}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Your Rank</p>
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-text-primary">
-                        {userReferralStats?.referralCount || 0}
+                        {userStats?.referralCount || 0}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Referrals</p>
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-fud-green">
-                        {userReferralStats ? formatPLS(userReferralStats.totalEarnings) : '0'}
+                        {formatPLS(BigInt(userStats?.referralEarnings || '0'))}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Total Earned</p>
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
-                      <p className="text-2xl font-display text-fud-orange">
-                        {userReferralStats ? formatPLS(userReferralStats.pendingEarnings) : '0'}
+                      <p className="text-2xl font-display text-fud-purple">
+                        {userStats?.referralCode || address?.slice(2, 10).toUpperCase() || '--'}
                       </p>
-                      <p className="text-xs text-text-muted font-mono">Pending</p>
+                      <p className="text-xs text-text-muted font-mono">Your Code</p>
                     </div>
                   </div>
                 </CardContent>
@@ -546,7 +500,7 @@ export default function LeaderboardPage() {
                         </div>
                         <div className="flex-1">
                           <p className="font-mono text-sm text-text-primary">
-                            {formatAddress(entry.address)}
+                            {formatAddress(entry.address as `0x${string}`)}
                           </p>
                           <p className="text-xs text-text-muted font-mono">
                             {entry.referralCount} referrals
@@ -554,7 +508,7 @@ export default function LeaderboardPage() {
                         </div>
                         <div className="text-right">
                           <p className="font-display text-lg text-fud-purple">
-                            {formatPLS(entry.totalEarnings)} PLS
+                            {formatPLS(BigInt(entry.totalEarnings))} PLS
                           </p>
                           <p className="text-xs text-text-muted font-mono">Total Earned</p>
                         </div>
@@ -580,7 +534,7 @@ export default function LeaderboardPage() {
                     </h3>
                     <p className="text-text-muted text-sm font-mono max-w-md">
                       Track the best performing traders on the platform.
-                      ROI calculated from all token investments and exits.
+                      ROI calculated from realized profits on token trades.
                     </p>
                   </div>
                   <div className="text-center">
@@ -606,31 +560,25 @@ export default function LeaderboardPage() {
                       <p className="text-text-muted text-xs font-mono">{formatAddress(address!)}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-fud-orange">
-                        #{userROIStats?.rank || '--'}
+                        #{userROIEntry?.rank || '--'}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Rank</p>
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-text-primary">
-                        {userROIStats ? formatPLS(userROIStats.totalInvested) : '0'}
+                        {userROIEntry ? formatPLS(BigInt(userROIEntry.totalInvested)) : '0'}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Invested</p>
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
-                      <p className="text-2xl font-display text-text-primary">
-                        {userROIStats ? formatPLS(userROIStats.currentValue) : '0'}
-                      </p>
-                      <p className="text-xs text-text-muted font-mono">Current Value</p>
-                    </div>
-                    <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className={`text-2xl font-display ${
-                        (userROIStats?.roiPercent || 0) >= 0 ? 'text-fud-green' : 'text-fud-red'
+                        (userROIEntry?.roiPercent || 0) >= 0 ? 'text-fud-green' : 'text-fud-red'
                       }`}>
-                        {userROIStats
-                          ? `${userROIStats.roiPercent >= 0 ? '+' : ''}${userROIStats.roiPercent.toFixed(1)}%`
+                        {userROIEntry
+                          ? `${userROIEntry.roiPercent >= 0 ? '+' : ''}${userROIEntry.roiPercent.toFixed(1)}%`
                           : '0%'
                         }
                       </p>
@@ -638,7 +586,7 @@ export default function LeaderboardPage() {
                     </div>
                     <div className="p-3 bg-dark-tertiary rounded-lg text-center">
                       <p className="text-2xl font-display text-text-primary">
-                        {userROIStats?.tokenCount || 0}
+                        {userROIEntry?.tokenCount || 0}
                       </p>
                       <p className="text-xs text-text-muted font-mono">Tokens</p>
                     </div>
@@ -687,7 +635,7 @@ export default function LeaderboardPage() {
                         </div>
                         <div className="flex-1">
                           <p className="font-mono text-sm text-text-primary">
-                            {formatAddress(entry.address)}
+                            {formatAddress(entry.address as `0x${string}`)}
                           </p>
                           <p className="text-xs text-text-muted font-mono">
                             {entry.tokenCount} tokens traded
@@ -705,7 +653,7 @@ export default function LeaderboardPage() {
                             {entry.roiPercent >= 0 ? '+' : ''}{entry.roiPercent.toFixed(1)}%
                           </p>
                           <p className="text-xs text-text-muted font-mono">
-                            {formatPLS(entry.realizedPnL)} PLS P&L
+                            {formatPLS(BigInt(entry.realizedPnL))} PLS P&L
                           </p>
                         </div>
                       </div>

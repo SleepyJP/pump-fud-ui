@@ -15,13 +15,8 @@ import { PanelWrapper } from './PanelWrapper';
 import { SkinSelector } from './SkinSelector';
 import type { PanelType, PanelLayout } from '@/types';
 
-// Dynamic require to avoid Turbopack ESM export issues with WidthProvider
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ReactGridLayout = require('react-grid-layout');
+// Import CSS for react-grid-layout
 import 'react-grid-layout/css/styles.css';
-
-const { WidthProvider, default: GridLayout } = ReactGridLayout;
-const ResponsiveGridLayout = WidthProvider(GridLayout);
 
 interface DashboardGridProps {
   tokenAddress: `0x${string}`;
@@ -37,7 +32,12 @@ const MARGIN: [number, number] = [12, 12];
 
 export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSupply, creator }: DashboardGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [GridComponent, setGridComponent] = useState<any>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { address, isConnected } = useAccount();
 
   // Only admin wallet can unlock/modify the dashboard
@@ -53,16 +53,93 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
     panelSkins,
   } = useDashboardStore();
 
-  // Wait for client-side mount to avoid hydration issues
+  // Callback ref pattern for reliable width measurement
+  const measureRef = useCallback((node: HTMLDivElement | null) => {
+    // Cleanup previous observer
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
+
+    if (node) {
+      containerRef.current = node;
+
+      // Measure immediately
+      const measureWidth = () => {
+        const width = node.offsetWidth;
+        if (width > 0) {
+          setContainerWidth(width);
+        } else if (typeof window !== 'undefined') {
+          // Fallback to window width minus padding
+          const fallbackWidth = window.innerWidth - 32;
+          if (fallbackWidth > 0) {
+            setContainerWidth(fallbackWidth);
+          }
+        }
+      };
+
+      // Try measuring immediately
+      measureWidth();
+
+      // Also try after a brief delay in case CSS hasn't loaded
+      setTimeout(measureWidth, 100);
+      setTimeout(measureWidth, 500);
+
+      // Setup observer for future resizes
+      resizeObserverRef.current = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const newWidth = entry.contentRect.width;
+          if (newWidth > 0) {
+            setContainerWidth(newWidth);
+          }
+        }
+      });
+      resizeObserverRef.current.observe(node);
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  // Load react-grid-layout v2 on client side only
   useEffect(() => {
     setMounted(true);
+
+    // Dynamic import with error handling for v2 API
+    const loadGridLayout = async () => {
+      try {
+        const mod = await import('react-grid-layout');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const RGL = mod as any;
+
+        // v2 API: Use GridLayout directly (no WidthProvider, we manage width ourselves)
+        const GridLayout = RGL.GridLayout || RGL.ReactGridLayout || RGL.default;
+
+        if (!GridLayout) {
+          throw new Error('GridLayout component not found in react-grid-layout');
+        }
+
+        setGridComponent(() => GridLayout);
+      } catch (err) {
+        console.error('Failed to load react-grid-layout:', err);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load grid component');
+      }
+    };
+
+    loadGridLayout();
   }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleLayoutChange = useCallback(
     (newLayout: any[]) => {
       if (!isLocked && Array.isArray(newLayout) && newLayout.length > 0) {
-        const updatedLayouts: PanelLayout[] = newLayout.map((item: any) => ({
+        const updatedLayouts: PanelLayout[] = newLayout.map((item) => ({
           i: item.i,
           x: item.x,
           y: item.y,
@@ -146,19 +223,41 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
     }
   };
 
-  // Don't render grid until mounted (avoids hydration issues)
-  if (!mounted) {
+  // Error state
+  if (loadError) {
     return (
-      <div ref={containerRef} className="relative min-h-[600px]">
+      <div ref={measureRef} className="relative min-h-[600px]">
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <div className="text-4xl">⚠️</div>
+          <div className="text-red-500 font-mono text-sm">Failed to load dashboard</div>
+          <div className="text-text-muted font-mono text-xs">{loadError}</div>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-fud-green/20 border border-fud-green text-fud-green rounded-lg font-mono text-sm"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state - wait for mount, GridComponent, AND container width
+  if (!mounted || !GridComponent || containerWidth === 0) {
+    return (
+      <div ref={measureRef} className="relative min-h-[600px]">
         <div className="flex items-center justify-center h-full">
-          <div className="text-fud-green font-mono animate-pulse">Loading Dashboard...</div>
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-fud-green/20 border-t-fud-green rounded-full animate-spin" />
+            <div className="text-fud-green font-mono animate-pulse">Loading Dashboard...</div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative" ref={measureRef}>
       {/* Dashboard Controls - ADMIN ONLY */}
       {isAdmin && (
         <div className="flex items-center justify-between mb-4 px-2">
@@ -187,12 +286,11 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
             <button
               onClick={() => {
                 resetLayout();
-                // Also clear localStorage to fix stale layout data
                 if (typeof window !== 'undefined') {
                   localStorage.removeItem('pump-fud-dashboard');
                 }
               }}
-              title="Reset panels to default positions (fixes layout gaps)"
+              title="Reset panels to default positions"
               className="flex items-center gap-2 px-3 py-2 rounded-lg font-mono text-sm bg-dark-secondary border border-border-primary text-text-muted hover:border-fud-orange/50 hover:text-fud-orange transition-all"
             >
               <RotateCcw size={16} />
@@ -220,12 +318,13 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
         </div>
       )}
 
-      {/* Grid Layout */}
-      <ResponsiveGridLayout
+      {/* Grid Layout - v2 API requires explicit width */}
+      <GridComponent
         className="layout"
         layout={gridLayout}
         cols={COLS}
         rowHeight={ROW_HEIGHT}
+        width={containerWidth}
         margin={MARGIN}
         containerPadding={[0, 0]}
         isDraggable={!isLocked}
@@ -243,7 +342,7 @@ export function DashboardGrid({ tokenAddress, tokenSymbol, currentPrice, totalSu
             {renderPanel(panelId)}
           </div>
         ))}
-      </ResponsiveGridLayout>
+      </GridComponent>
     </div>
   );
 }

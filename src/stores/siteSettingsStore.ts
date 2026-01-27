@@ -268,7 +268,14 @@ const DEFAULT_SETTINGS: SiteSettings = {
   accentColor: '#00ff88',
   secondaryAccent: '#8b5cf6',
   savedPatterns: [],
-  hiddenTokens: [],
+  // Pre-hidden test tokens for clean launch
+  hiddenTokens: [
+    '0x993ff7f0bfc0a4338367342a747513bd9b014554', // NAH - Nanner's
+    '0x71d92fcd589df9b22578af11073199137f610b88', // DWB - DickWifButt
+    '0x97abfde56c6c3bec676899c97de50c1ec679e2c4', // TEST - TESTIES
+    '0x9ec33905f672bec08b1e95e44f5d2046d733a3e9', // TEST2 - TESTIE 2
+    '0x6a4885c6a60a52ff270ec0a98ce6232eb7e0c95a', // FCKNBUTT - BUTT FUCKIN AMAZING
+  ] as `0x${string}`[],
 };
 
 export const useSiteSettings = create<SiteSettingsState>()(
@@ -428,6 +435,24 @@ export const useSiteSettings = create<SiteSettingsState>()(
     }),
     {
       name: 'pump-fud-site-settings',
+      version: 2, // Bump this when changing defaults
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as SiteSettings;
+        // Version 2: Add pre-hidden test tokens for clean launch
+        if (version < 2) {
+          const testTokens: `0x${string}`[] = [
+            '0x993ff7f0bfc0a4338367342a747513bd9b014554',
+            '0x71d92fcd589df9b22578af11073199137f610b88',
+            '0x97abfde56c6c3bec676899c97de50c1ec679e2c4',
+            '0x9ec33905f672bec08b1e95e44f5d2046d733a3e9',
+            '0x6a4885c6a60a52ff270ec0a98ce6232eb7e0c95a',
+          ];
+          const existingHidden = state.hiddenTokens || [];
+          const merged = [...new Set([...existingHidden, ...testTokens])];
+          return { ...state, hiddenTokens: merged };
+        }
+        return state;
+      },
     }
   )
 );

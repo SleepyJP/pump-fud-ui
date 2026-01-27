@@ -1,0 +1,24 @@
+
+> pump-fud-indexer@1.0.0 api
+> ts-node src/api.ts
+
+✅ Database initialized
+═══════════════════════════════════════
+🌐 PUMP.FUD API Server
+📍 http://localhost:3001
+═══════════════════════════════════════
+Endpoints:
+  GET  /api/leaderboard/airdrop
+  GET  /api/leaderboard/referral
+  GET  /api/leaderboard/roi
+  GET  /api/user/:address
+  GET  /api/user/:address/rank
+  GET  /api/user/:address/positions
+  POST /api/referral/register
+  GET  /api/referral/code/:code
+  GET  /api/tokens/creator/:address
+  GET  /api/token/:address
+  GET  /api/pool/today
+  GET  /api/fees
+═══════════════════════════════════════
+Terminated

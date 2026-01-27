@@ -1,18 +1,46 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+import { Suspense, useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useReadContract } from 'wagmi';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
-import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
+import { ArrowLeft } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { TOKEN_ABI } from '@/config/abis';
 import { formatPLS, formatTokens, formatAddress } from '@/lib/utils';
+
+// Dynamic import with SSR disabled - react-grid-layout is browser-only
+const DashboardGrid = dynamic(
+  () => import('@/components/dashboard/DashboardGrid').then((mod) => ({ default: mod.DashboardGrid })),
+  {
+    ssr: false,
+    loading: () => <DashboardLoader />,
+  }
+);
+
+// Loading component for dashboard
+function DashboardLoader() {
+  return (
+    <div className="min-h-[600px] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-fud-green/20 border-t-fud-green rounded-full animate-spin" />
+        <span className="text-fud-green font-mono text-sm animate-pulse">Loading Dashboard...</span>
+      </div>
+    </div>
+  );
+}
 
 export default function TokenPage() {
   const params = useParams();
   const router = useRouter();
   const address = params.address as `0x${string}`;
+
+  // Client-only mount guard to prevent hydration mismatch
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { data: name } = useReadContract({
     address,
@@ -73,6 +101,17 @@ export default function TokenPage() {
     abi: TOKEN_ABI,
     functionName: 'description',
   });
+
+  // Show loader during SSR or before client mount
+  if (!mounted) {
+    return (
+      <div className="min-h-screen">
+        <div className="max-w-[1400px] mx-auto px-4 py-8">
+          <DashboardLoader />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -189,7 +228,7 @@ export default function TokenPage() {
             <div className="flex justify-between text-xs font-mono mb-2">
               <span className="text-text-muted">Graduation Progress</span>
               <span className="text-fud-green">
-                {plsReserve ? formatPLS(plsReserve as bigint) : '0'} / 69K PLS
+                {plsReserve ? formatPLS(plsReserve as bigint) : '0'} / 50M PLS
               </span>
             </div>
             <div className="h-3 bg-dark-secondary rounded-full overflow-hidden">
@@ -203,14 +242,16 @@ export default function TokenPage() {
           </Card>
         )}
 
-        {/* Draggable Dashboard Grid */}
-        <DashboardGrid
-          tokenAddress={address}
-          tokenSymbol={symbol as string}
-          currentPrice={currentPrice as bigint}
-          totalSupply={totalSupply as bigint}
-          creator={creator as `0x${string}`}
-        />
+        {/* Draggable Dashboard Grid - Wrapped in Suspense */}
+        <Suspense fallback={<DashboardLoader />}>
+          <DashboardGrid
+            tokenAddress={address}
+            tokenSymbol={symbol as string}
+            currentPrice={currentPrice as bigint}
+            totalSupply={totalSupply as bigint}
+            creator={creator as `0x${string}`}
+          />
+        </Suspense>
       </div>
     </div>
   );

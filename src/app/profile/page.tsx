@@ -544,7 +544,7 @@ export default function ProfilePage() {
                       No graduated tokens yet
                     </p>
                     <p className="text-text-muted/50 text-xs font-mono">
-                      Tokens graduate when they reach 69K PLS in the bonding curve
+                      Tokens graduate when they reach 50M PLS in the bonding curve
                     </p>
                   </div>
                 ) : (

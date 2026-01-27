@@ -199,7 +199,8 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
     let chartInstance: any = null;
 
     const initChart = async () => {
-      const { createChart, ColorType, CrosshairMode, LineStyle } = await import('lightweight-charts');
+      const lwc = await import('lightweight-charts');
+      const { createChart, ColorType, CrosshairMode, LineStyle, CandlestickSeries, HistogramSeries } = lwc;
 
       if (!chartContainerRef.current) return;
 
@@ -240,8 +241,8 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         handleScroll: { vertTouchDrag: false },
       });
 
-      // Candlestick series
-      const candleSeries = chartInstance.addCandlestickSeries({
+      // Candlestick series - v5 API uses addSeries with series class
+      const candleSeries = chartInstance.addSeries(CandlestickSeries, {
         upColor: '#00ff88',
         downColor: '#ef4444',
         borderUpColor: '#00ff88',
@@ -250,11 +251,13 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         wickDownColor: '#ef4444',
       });
 
-      // Volume histogram
-      const volumeSeries = chartInstance.addHistogramSeries({
+      // Volume histogram - v5 API
+      const volumeSeries = chartInstance.addSeries(HistogramSeries, {
         color: '#00ff88',
         priceFormat: { type: 'volume' },
         priceScaleId: '',
+      });
+      volumeSeries.priceScale().applyOptions({
         scaleMargins: { top: 0.85, bottom: 0 },
       });
 

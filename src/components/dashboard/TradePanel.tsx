@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAccount, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, formatEther, erc20Abi } from 'viem';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
@@ -38,6 +38,53 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }
   });
   const tokenBalance = tokenBalanceRaw ? { value: tokenBalanceRaw as bigint } : undefined;
 
+  // Quote for BUY: how many tokens will I get for this PLS amount?
+  const parsedAmount = useMemo(() => {
+    try {
+      return amount && parseFloat(amount) > 0 ? parseEther(amount) : BigInt(0);
+    } catch {
+      return BigInt(0);
+    }
+  }, [amount]);
+
+  const { data: buyQuote } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'calculateBuyReturn',
+    args: [parsedAmount],
+    query: {
+      enabled: !!tokenAddress && mode === 'buy' && parsedAmount > BigInt(0),
+    },
+  });
+
+  // Quote for SELL: how much PLS will I get for this token amount?
+  const { data: sellQuote } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'calculateSellReturn',
+    args: [parsedAmount],
+    query: {
+      enabled: !!tokenAddress && mode === 'sell' && parsedAmount > BigInt(0),
+    },
+  });
+
+  // Calculate minimum output with slippage
+  const slippageBps = useMemo(() => {
+    const pct = parseFloat(slippage) || 5;
+    return BigInt(Math.floor(pct * 100)); // Convert to basis points (5% = 500)
+  }, [slippage]);
+
+  const minBuyTokens = useMemo(() => {
+    if (!buyQuote) return BigInt(0);
+    // minOut = quote * (10000 - slippageBps) / 10000
+    return (buyQuote * (BigInt(10000) - slippageBps)) / BigInt(10000);
+  }, [buyQuote, slippageBps]);
+
+  const minSellPls = useMemo(() => {
+    if (!sellQuote) return BigInt(0);
+    return (sellQuote * (BigInt(10000) - slippageBps)) / BigInt(10000);
+  }, [sellQuote, slippageBps]);
+
   const { writeContract, data: hash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
@@ -45,22 +92,22 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }
     if (!tokenAddress || !amount) return;
 
     if (mode === 'buy') {
-      const minTokens = BigInt(0); // Calculate with slippage
+      // Use slippage-protected minimum tokens
       writeContract({
         address: tokenAddress,
         abi: TOKEN_ABI,
         functionName: 'buy',
-        args: [minTokens],
+        args: [minBuyTokens],
         value: parseEther(amount),
       });
     } else {
       const tokenAmount = parseEther(amount);
-      const minPls = BigInt(0); // Calculate with slippage
+      // Use slippage-protected minimum PLS
       writeContract({
         address: tokenAddress,
         abi: TOKEN_ABI,
         functionName: 'sell',
-        args: [tokenAmount, minPls],
+        args: [tokenAmount, minSellPls],
       });
     }
   };
@@ -147,6 +194,36 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }
                 ))}
               </div>
             </div>
+
+            {/* Expected Output */}
+            {amount && parseFloat(amount) > 0 && (
+              <div className="p-3 bg-fud-green/10 border border-fud-green/30 rounded space-y-1">
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-text-muted">You will receive</span>
+                  <span className="text-fud-green font-bold">
+                    {mode === 'buy'
+                      ? buyQuote
+                        ? `~${formatPLS(buyQuote)} ${tokenSymbol}`
+                        : 'Loading...'
+                      : sellQuote
+                      ? `~${formatPLS(sellQuote)} PLS`
+                      : 'Loading...'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-text-muted">Min. received ({slippage}% slip)</span>
+                  <span className="text-fud-orange">
+                    {mode === 'buy'
+                      ? minBuyTokens > BigInt(0)
+                        ? `${formatPLS(minBuyTokens)} ${tokenSymbol}`
+                        : '--'
+                      : minSellPls > BigInt(0)
+                      ? `${formatPLS(minSellPls)} PLS`
+                      : '--'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="p-3 bg-dark-secondary rounded space-y-2">
               <div className="flex justify-between text-xs font-mono">

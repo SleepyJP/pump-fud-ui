@@ -76,23 +76,31 @@ export const useDashboardStore = create<DashboardState>()(
     }),
     {
       name: 'pump-fud-dashboard',
-      version: 3, // Bump version to force proper layouts with all panels
+      version: 4, // Bump version to ensure panels are LOCKED by default
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as DashboardState;
 
         // Migration: ensure all default panels exist in layouts and activePanels
-        // Version 3: Force reset layouts to fix Holders panel positioning
-        if (version < 3) {
+        // Version 4: Force isLocked=true for ALL users (security fix)
+        if (version < 4) {
           return {
             ...state,
             layouts: DEFAULT_LAYOUTS,
             activePanels: DEFAULT_PANELS,
             panelSkins: DEFAULT_SKINS,
-            isLocked: true,
+            isLocked: true, // CRITICAL: Always locked by default
           };
         }
 
         return state;
+      },
+      // Skip hydration to prevent SSR mismatch
+      skipHydration: false,
+      onRehydrateStorage: () => (state) => {
+        // After rehydration, ensure isLocked is true if somehow corrupted
+        if (state && state.isLocked === undefined) {
+          state.isLocked = true;
+        }
       },
     }
   )
