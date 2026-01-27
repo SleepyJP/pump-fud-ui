@@ -5,7 +5,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useReadContract } from 'wagmi';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Copy, Check } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { TOKEN_ABI } from '@/config/abis';
 import { formatPLS, formatTokens, formatAddress } from '@/lib/utils';
@@ -38,9 +38,17 @@ export default function TokenPage() {
 
   // Client-only mount guard to prevent hydration mismatch
   const [mounted, setMounted] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const { data: name } = useReadContract({
     address,
@@ -135,21 +143,21 @@ export default function TokenPage() {
 
         {/* Token Header */}
         <div className="flex items-start gap-6 mb-8">
-          <div className="w-20 h-20 rounded-xl bg-dark-secondary flex items-center justify-center overflow-hidden border border-fud-green/30">
+          <div className="w-28 h-28 rounded-xl bg-dark-secondary flex items-center justify-center overflow-hidden border-2 border-fud-green/50 shadow-lg shadow-fud-green/20">
             {imageUri ? (
               <img
                 src={imageUri as string}
-                alt={name as string}
+                alt={symbol as string}
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-4xl">🚀</span>
+              <span className="text-6xl">🚀</span>
             )}
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="font-display text-3xl text-fud-green">{name || 'Loading...'}</h1>
-              <span className="text-text-muted font-mono">${symbol || '...'}</span>
+              <h1 className="font-display text-4xl text-fud-green">{symbol || '...'}</h1>
+              <span className="text-text-muted font-mono text-lg">{name || 'Loading...'}</span>
               {graduated && (
                 <span className="px-3 py-1 bg-fud-green/20 text-fud-green text-xs font-mono rounded-full">
                   ✓ GRADUATED
@@ -171,23 +179,24 @@ export default function TokenPage() {
                   {creator ? formatAddress(creator as string) : '...'}
                 </a>
               </span>
-              <span className="text-text-muted">
+              <button
+                onClick={() => copyToClipboard(address)}
+                className="flex items-center gap-1 text-text-muted hover:text-fud-green transition-colors"
+              >
                 Contract:{' '}
-                <a
-                  href={`https://scan.pulsechain.com/address/${address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-fud-green hover:underline"
-                >
-                  {formatAddress(address)}
-                </a>
-              </span>
+                <span className="text-fud-green">{formatAddress(address)}</span>
+                {copied ? (
+                  <Check size={12} className="text-fud-green" />
+                ) : (
+                  <Copy size={12} className="opacity-50 hover:opacity-100" />
+                )}
+              </button>
             </div>
           </div>
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-4">
           <Card className="p-4">
             <div className="text-text-muted text-xs font-mono mb-1">Price</div>
             <div className="text-fud-green font-display text-lg">
@@ -201,15 +210,21 @@ export default function TokenPage() {
             </div>
           </Card>
           <Card className="p-4">
-            <div className="text-text-muted text-xs font-mono mb-1">Supply</div>
-            <div className="text-text-primary font-display text-lg">
-              {totalSupply ? formatTokens(totalSupply as bigint) : '--'}
+            <div className="text-fud-green text-xs font-mono mb-1">BUYS</div>
+            <div className="text-fud-green font-display text-lg">
+              --
             </div>
           </Card>
           <Card className="p-4">
-            <div className="text-text-muted text-xs font-mono mb-1">Graduation</div>
-            <div className="text-fud-green font-display text-lg">
-              {graduationProgress !== undefined ? `${Number(graduationProgress)}%` : '--'}
+            <div className="text-fud-orange text-xs font-mono mb-1">SELLS</div>
+            <div className="text-fud-orange font-display text-lg">
+              --
+            </div>
+          </Card>
+          <Card className="p-4">
+            <div className="text-red-500 text-xs font-mono mb-1">BURNS</div>
+            <div className="text-red-500 font-display text-lg">
+              --
             </div>
           </Card>
           <Card className="p-4">
