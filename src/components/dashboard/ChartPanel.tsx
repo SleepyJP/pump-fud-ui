@@ -326,27 +326,12 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           wickDownColor: '#ef4444',
         });
 
-        const volumeSeries = chartInstance.addSeries(HistogramSeries, {
-          color: '#00ff88',
-          priceFormat: { type: 'volume' },
-          priceScaleId: 'volume',
-        });
-
-        // ═══════════════════════════════════════════════════════════════════
-        // CRITICAL FIX: Set empty data BEFORE applying price scale options
-        // This prevents the .toString() crash on undefined values
-        // ═══════════════════════════════════════════════════════════════════
+        // Initialize candle series with empty data
         candleSeries.setData([]);
-        volumeSeries.setData([]);
-
-        // NOW it's safe to apply price scale options
-        volumeSeries.priceScale().applyOptions({
-          scaleMargins: { top: 0.85, bottom: 0 },
-        });
 
         chartRef.current = chartInstance;
         candleSeriesRef.current = candleSeries;
-        volumeSeriesRef.current = volumeSeries;
+        volumeSeriesRef.current = null; // Disabled - causing crash
         isChartReadyRef.current = true;
 
         // Safe ResizeObserver
@@ -395,7 +380,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
   // Update chart data when trades or timeframe change
   useEffect(() => {
-    if (!isChartReadyRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+    if (!isChartReadyRef.current || !candleSeriesRef.current) return;
     if (trades.length === 0) return;
 
     try {
@@ -418,14 +403,6 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             high: c.high,
             low: c.low,
             close: c.close,
-          }))
-        );
-
-        volumeSeriesRef.current.setData(
-          validCandles.map((c) => ({
-            time: c.time,
-            value: c.volume || 0,
-            color: c.close >= c.open ? 'rgba(0, 255, 136, 0.4)' : 'rgba(239, 68, 68, 0.4)',
           }))
         );
 
