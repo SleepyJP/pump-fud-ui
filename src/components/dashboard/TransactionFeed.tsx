@@ -66,9 +66,9 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
         uniqueBlocks.slice(-30).map(async (bn) => {
           try {
             const block = await publicClient.getBlock({ blockNumber: bn });
-            blockTimestamps[bn.toString()] = Number(block.timestamp);
+            blockTimestamps[bn?.toString() ?? '0'] = Number(block.timestamp);
           } catch {
-            blockTimestamps[bn.toString()] = Math.floor(Date.now() / 1000);
+            blockTimestamps[bn?.toString() ?? '0'] = Math.floor(Date.now() / 1000);
           }
         })
       );
@@ -91,7 +91,7 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
           tokenAmount: args.tokensBought,
           txHash: log.transactionHash,
           blockNumber: log.blockNumber,
-          timestamp: blockTimestamps[log.blockNumber.toString()] || Math.floor(Date.now() / 1000),
+          timestamp: blockTimestamps[log.blockNumber?.toString() ?? '0'] || Math.floor(Date.now() / 1000),
         });
       }
 
@@ -109,7 +109,7 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
           tokenAmount: args.tokensSold,
           txHash: log.transactionHash,
           blockNumber: log.blockNumber,
-          timestamp: blockTimestamps[log.blockNumber.toString()] || Math.floor(Date.now() / 1000),
+          timestamp: blockTimestamps[log.blockNumber?.toString() ?? '0'] || Math.floor(Date.now() / 1000),
         });
       }
 

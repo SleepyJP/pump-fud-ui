@@ -109,11 +109,11 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           batch.map(async (bn) => {
             try {
               const block = await publicClient.getBlock({ blockNumber: bn });
-              blockTimestamps[bn.toString()] = Number(block.timestamp);
+              blockTimestamps[bn?.toString() ?? '0'] = Number(block.timestamp);
             } catch {
               // Fallback: estimate timestamp based on 3s block time
               const blocksAgo = Number(currentBlock - bn);
-              blockTimestamps[bn.toString()] = Math.floor(Date.now() / 1000) - (blocksAgo * 3);
+              blockTimestamps[bn?.toString() ?? '0'] = Math.floor(Date.now() / 1000) - (blocksAgo * 3);
             }
           })
         );
@@ -135,7 +135,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       });
 
       for (const log of allLogs) {
-        const timestamp = blockTimestamps[log.blockNumber.toString()] || Math.floor(Date.now() / 1000);
+        const timestamp = blockTimestamps[log.blockNumber?.toString() ?? '0'] || Math.floor(Date.now() / 1000);
 
         if (log.type === 'buy') {
           const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint };
@@ -561,7 +561,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           {lastUpdate ? `Updated ${lastUpdate.toLocaleTimeString()}` : 'Waiting...'}
         </span>
         <span className="text-[10px] font-mono text-fud-green">
-          {tradeCount} trades | Block #{blockNumber?.toString() || '...'}
+          {tradeCount} trades | Block #{blockNumber?.toString() ?? '...'}
         </span>
       </div>
     </div>
