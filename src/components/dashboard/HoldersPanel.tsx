@@ -112,7 +112,8 @@ export function HoldersPanel({ tokenAddress, tokenSymbol, totalSupply, creator }
     return () => { isMountedRef.current = false; };
   }, []);
 
-  const formatBalance = (balance: bigint): string => {
+  const formatBalance = (balance: bigint | undefined): string => {
+    if (!balance) return '0';
     const num = Number(formatUnits(balance, 18));
     if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(2) + 'B';
     if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';

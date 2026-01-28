@@ -79,6 +79,7 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
 
       for (const log of buyLogs) {
         const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint };
+        if (!args?.buyer || !args?.plsSpent || !args?.tokensBought) continue;
         const id = `${log.transactionHash}-${log.logIndex}`;
         if (seenTxsRef.current.has(id)) continue;
         seenTxsRef.current.add(id);
@@ -97,6 +98,7 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
 
       for (const log of sellLogs) {
         const args = log.args as { seller: `0x${string}`; tokensSold: bigint; plsReceived: bigint };
+        if (!args?.seller || !args?.tokensSold || !args?.plsReceived) continue;
         const id = `${log.transactionHash}-${log.logIndex}`;
         if (seenTxsRef.current.has(id)) continue;
         seenTxsRef.current.add(id);
@@ -147,7 +149,8 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
     return () => { isMountedRef.current = false; };
   }, []);
 
-  const formatAmount = (amt: bigint): string => {
+  const formatAmount = (amt: bigint | undefined): string => {
+    if (!amt) return '0';
     const num = Number(formatUnits(amt, 18));
     if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';
     if (num >= 1_000) return (num / 1_000).toFixed(2) + 'K';

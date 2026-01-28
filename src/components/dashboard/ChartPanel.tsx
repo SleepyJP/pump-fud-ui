@@ -139,7 +139,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
         if (log.type === 'buy') {
           const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint };
-          if (args.plsSpent && args.tokensBought && args.plsSpent > BigInt(0) && args.tokensBought > BigInt(0)) {
+          if (args?.plsSpent && args?.tokensBought && args.plsSpent > BigInt(0) && args.tokensBought > BigInt(0)) {
             runningPlsReserve += args.plsSpent;
             runningTokenSupply -= args.tokensBought;
 
@@ -160,7 +160,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           }
         } else {
           const args = log.args as { seller: `0x${string}`; tokensSold: bigint; plsReceived: bigint };
-          if (args.tokensSold && args.plsReceived && args.tokensSold > BigInt(0) && args.plsReceived > BigInt(0)) {
+          if (args?.tokensSold && args?.plsReceived && args.tokensSold > BigInt(0) && args.plsReceived > BigInt(0)) {
             runningPlsReserve -= args.plsReceived;
             runningTokenSupply += args.tokensSold;
 

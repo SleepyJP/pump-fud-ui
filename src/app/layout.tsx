@@ -46,7 +46,7 @@ export default function RootLayout({
         <Providers>
           <GlobalBackground />
           <Header />
-          <main className="flex-1 pt-16 grid-bg">{children}</main>
+          <main className="flex-1 pt-20 grid-bg">{children}</main>
           <Footer />
         </Providers>
       </body>

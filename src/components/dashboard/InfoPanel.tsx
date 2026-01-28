@@ -145,7 +145,8 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
     return () => { isMountedRef.current = false; };
   }, []);
 
-  const formatPls = (amount: bigint): string => {
+  const formatPls = (amount: bigint | undefined): string => {
+    if (!amount) return '0';
     const num = Number(formatUnits(amount, 18));
     if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';
     if (num >= 1_000) return (num / 1_000).toFixed(2) + 'K';

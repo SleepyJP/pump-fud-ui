@@ -47,7 +47,14 @@
   --font-sans: 'Space Grotesk', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   --font-display: 'Orbitron', sans-serif;
+  --header-height: 80px;
+  --safe-top: calc(var(--header-height) + 16px);
 }
+
+/* Header spacing utilities */
+.nav-spacer { height: var(--header-height); }
+.page-safe { padding-top: var(--header-height); min-height: 100vh; }
+.content-safe { padding-top: var(--safe-top); }
 
 * {
   box-sizing: border-box;
