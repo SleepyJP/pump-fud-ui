@@ -52,7 +52,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
       abi: SUPERCHAT_ABI,
       functionName: 'sendSuperChat',
       args: [tokenAddress, message, false],
-      value: parseEther(tierPrice.toString()),
+      value: parseEther(tierPrice?.toString() ?? ""),
     });
 
     setMessage('');

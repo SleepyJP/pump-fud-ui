@@ -47,7 +47,7 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
       abi: SUPERCHAT_ABI,
       functionName: 'sendSuperChat',
       args: [tokenAddress, message, true],
-      value: parseEther(tierPrice.toString()),
+      value: parseEther(tierPrice?.toString() ?? ""),
     });
 
     setMessage('');
