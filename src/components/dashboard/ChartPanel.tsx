@@ -99,7 +99,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       if (!isMountedRef.current) return;
 
       // Get ALL block timestamps for accuracy
-      const blockNumbers = [...new Set([...buyLogs, ...sellLogs].map((l) => l.blockNumber))];
+      const blockNumbers = [...new Set([...buyLogs, ...sellLogs].map((l) => l.blockNumber).filter((bn): bn is bigint => bn !== undefined))];
       const blockTimestamps: Record<string, number> = {};
 
       // Fetch in batches of 50 to not overload RPC

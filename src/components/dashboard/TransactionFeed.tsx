@@ -59,7 +59,7 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
       if (!isMountedRef.current) return;
 
       // Get block timestamps for recent blocks
-      const uniqueBlocks = [...new Set([...buyLogs, ...sellLogs].map(l => l.blockNumber))];
+      const uniqueBlocks = [...new Set([...buyLogs, ...sellLogs].map(l => l.blockNumber).filter((bn): bn is bigint => bn !== undefined))];
       const blockTimestamps: Record<string, number> = {};
 
       await Promise.all(
