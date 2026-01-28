@@ -52,5 +52,5 @@ export default function TokenPage() {
     );
   }
 
-  return <TokenDashboard address={address} />;
+  return <TokenDashboard tokenAddress={address as `0x${string}`} />;
 }

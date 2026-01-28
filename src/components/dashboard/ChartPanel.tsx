@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { usePublicClient } from 'wagmi';
+import { usePublicClient, useBlockNumber } from 'wagmi';
 import { parseAbiItem, formatUnits } from 'viem';
-import { useBlockRefresh } from '@/hooks/useSharedBlockNumber';
-import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, RefreshCw, Zap } from 'lucide-react';
 
 interface ChartPanelProps {
   tokenAddress?: `0x${string}`;
@@ -15,6 +14,7 @@ interface TradeData {
   price: number;
   volume: number;
   isBuy: boolean;
+  blockNumber: bigint;
 }
 
 interface CandleData {
@@ -24,11 +24,15 @@ interface CandleData {
   low: number;
   close: number;
   volume: number;
+  trades: number;
 }
 
-type TimeFrame = '1M' | '5M' | '15M' | '1H' | '4H' | '1D';
+// BEAST MODE TIMEFRAMES - including seconds for snipers
+type TimeFrame = '5S' | '15S' | '1M' | '5M' | '15M' | '1H' | '4H' | '1D';
 
 const TIMEFRAME_SECONDS: Record<TimeFrame, number> = {
+  '5S': 5,
+  '15S': 15,
   '1M': 60,
   '5M': 300,
   '15M': 900,
@@ -44,22 +48,28 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
   const volumeSeriesRef = useRef<any>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const isMountedRef = useRef(true);
-  const initAttempts = useRef(0);
+  const isChartReadyRef = useRef(false);
+  const lastFetchBlockRef = useRef<bigint>(BigInt(0));
 
-  const [timeframe, setTimeframe] = useState<TimeFrame>('5M');
+  const [timeframe, setTimeframe] = useState<TimeFrame>('1M');
   const [isLoading, setIsLoading] = useState(false);
   const [trades, setTrades] = useState<TradeData[]>([]);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [priceChange, setPriceChange] = useState<number>(0);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [tradeCount, setTradeCount] = useState(0);
   const [chartError, setChartError] = useState<string | null>(null);
-  const [chartReady, setChartReady] = useState(false);
 
   const publicClient = usePublicClient();
+  const { data: blockNumber } = useBlockNumber({ watch: true });
 
-  // Fetch trade events from chain
+  // BEAST MODE: Fetch ALL trade events
   const fetchTrades = useCallback(async () => {
     if (!tokenAddress || !publicClient || !isMountedRef.current) return;
+
+    // Prevent duplicate fetches for same block
+    if (blockNumber && blockNumber === lastFetchBlockRef.current) return;
+    if (blockNumber) lastFetchBlockRef.current = blockNumber;
 
     setIsLoading(true);
 
@@ -68,7 +78,8 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       const sellEvent = parseAbiItem('event TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)');
 
       const currentBlock = await publicClient.getBlockNumber();
-      const fromBlock = currentBlock - BigInt(30000); // ~1 day on PulseChain
+      // BEAST: Go back 100k blocks (~4 days on PulseChain) for full history
+      const fromBlock = currentBlock - BigInt(100000);
 
       const [buyLogs, sellLogs] = await Promise.all([
         publicClient.getLogs({
@@ -87,27 +98,33 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
       if (!isMountedRef.current) return;
 
-      // Get block timestamps (limited to prevent RPC overload)
+      // Get ALL block timestamps for accuracy
       const blockNumbers = [...new Set([...buyLogs, ...sellLogs].map((l) => l.blockNumber))];
       const blockTimestamps: Record<string, number> = {};
 
-      const blocksToFetch = blockNumbers.slice(0, 50);
-      await Promise.all(
-        blocksToFetch.map(async (bn) => {
-          try {
-            const block = await publicClient.getBlock({ blockNumber: bn });
-            blockTimestamps[bn.toString()] = Number(block.timestamp);
-          } catch {
-            blockTimestamps[bn.toString()] = Math.floor(Date.now() / 1000);
-          }
-        })
-      );
+      // Fetch in batches of 50 to not overload RPC
+      for (let i = 0; i < blockNumbers.length; i += 50) {
+        const batch = blockNumbers.slice(i, i + 50);
+        await Promise.all(
+          batch.map(async (bn) => {
+            try {
+              const block = await publicClient.getBlock({ blockNumber: bn });
+              blockTimestamps[bn.toString()] = Number(block.timestamp);
+            } catch {
+              // Fallback: estimate timestamp based on 3s block time
+              const blocksAgo = Number(currentBlock - bn);
+              blockTimestamps[bn.toString()] = Math.floor(Date.now() / 1000) - (blocksAgo * 3);
+            }
+          })
+        );
+      }
 
       if (!isMountedRef.current) return;
 
       const tradeData: TradeData[] = [];
+      // PUMP.FUD bonding curve starts with 800M tokens
       let runningPlsReserve = BigInt(0);
-      let runningTokenSupply = BigInt(250_000_000) * BigInt(10 ** 18);
+      let runningTokenSupply = BigInt(800_000_000) * BigInt(10 ** 18);
 
       const allLogs = [
         ...buyLogs.map(l => ({ ...l, type: 'buy' as const })),
@@ -122,48 +139,60 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
         if (log.type === 'buy') {
           const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint };
-          if (args.plsSpent && args.tokensBought) {
+          if (args.plsSpent && args.tokensBought && args.plsSpent > BigInt(0) && args.tokensBought > BigInt(0)) {
             runningPlsReserve += args.plsSpent;
             runningTokenSupply -= args.tokensBought;
+
+            // Calculate price with maximum precision
             const price = runningTokenSupply > BigInt(0)
               ? Number(formatUnits(runningPlsReserve * BigInt(10 ** 18) / runningTokenSupply, 18))
-              : 0;
-            tradeData.push({
-              timestamp,
-              price: price > 0 ? price : Number(formatUnits(args.plsSpent, 18)) / Number(formatUnits(args.tokensBought, 18)),
-              volume: Number(formatUnits(args.plsSpent, 18)),
-              isBuy: true,
-            });
+              : Number(formatUnits(args.plsSpent, 18)) / Number(formatUnits(args.tokensBought, 18));
+
+            if (price > 0 && Number.isFinite(price)) {
+              tradeData.push({
+                timestamp,
+                price,
+                volume: Number(formatUnits(args.plsSpent, 18)),
+                isBuy: true,
+                blockNumber: log.blockNumber,
+              });
+            }
           }
         } else {
           const args = log.args as { seller: `0x${string}`; tokensSold: bigint; plsReceived: bigint };
-          if (args.tokensSold && args.plsReceived) {
+          if (args.tokensSold && args.plsReceived && args.tokensSold > BigInt(0) && args.plsReceived > BigInt(0)) {
             runningPlsReserve -= args.plsReceived;
             runningTokenSupply += args.tokensSold;
+
             const price = runningTokenSupply > BigInt(0)
               ? Number(formatUnits(runningPlsReserve * BigInt(10 ** 18) / runningTokenSupply, 18))
-              : 0;
-            tradeData.push({
-              timestamp,
-              price: price > 0 ? price : Number(formatUnits(args.plsReceived, 18)) / Number(formatUnits(args.tokensSold, 18)),
-              volume: Number(formatUnits(args.plsReceived, 18)),
-              isBuy: false,
-            });
+              : Number(formatUnits(args.plsReceived, 18)) / Number(formatUnits(args.tokensSold, 18));
+
+            if (price > 0 && Number.isFinite(price)) {
+              tradeData.push({
+                timestamp,
+                price,
+                volume: Number(formatUnits(args.plsReceived, 18)),
+                isBuy: false,
+                blockNumber: log.blockNumber,
+              });
+            }
           }
         }
       }
 
-      // If no trades, show initial bonding curve price
+      // If no trades, create initial point at bonding curve start price
       if (tradeData.length === 0) {
         const now = Math.floor(Date.now() / 1000);
-        const initialPrice = 0.0000002;
-        tradeData.push({ timestamp: now - 300, price: initialPrice, volume: 0, isBuy: true });
-        tradeData.push({ timestamp: now, price: initialPrice, volume: 0, isBuy: true });
+        const initialPrice = 0.0000000625; // Initial bonding curve price
+        tradeData.push({ timestamp: now - 300, price: initialPrice, volume: 0, isBuy: true, blockNumber: BigInt(0) });
+        tradeData.push({ timestamp: now, price: initialPrice, volume: 0, isBuy: true, blockNumber: BigInt(0) });
       }
 
       if (!isMountedRef.current) return;
 
       setTrades(tradeData);
+      setTradeCount(tradeData.length);
       setLastUpdate(new Date());
 
       if (tradeData.length > 0) {
@@ -175,33 +204,16 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         }
       }
     } catch (err) {
-      console.error('[Chart] Failed to fetch trades:', err);
+      console.error('[BeastChart] Failed to fetch trades:', err);
+      setChartError('Failed to fetch trade data');
     } finally {
       if (isMountedRef.current) {
         setIsLoading(false);
       }
     }
-  }, [tokenAddress, publicClient]);
+  }, [tokenAddress, publicClient, blockNumber]);
 
-  // Use shared block refresh - EVERY BLOCK
-  useBlockRefresh('chart', fetchTrades, 1, !!tokenAddress);
-
-  // Initial fetch on mount
-  useEffect(() => {
-    if (tokenAddress) {
-      fetchTrades();
-    }
-  }, [tokenAddress]); // fetchTrades intentionally excluded
-
-  // Cleanup on unmount
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Convert trades to candles
+  // Convert trades to candles with trade count
   const tradesToCandles = useCallback((tradeData: TradeData[], tf: TimeFrame): CandleData[] => {
     if (tradeData.length === 0) return [];
 
@@ -219,6 +231,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           low: trade.price,
           close: trade.price,
           volume: trade.volume,
+          trades: 1,
         });
       } else {
         const candle = candleMap.get(candleTime)!;
@@ -226,106 +239,137 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         candle.low = Math.min(candle.low, trade.price);
         candle.close = trade.price;
         candle.volume += trade.volume;
+        candle.trades += 1;
       }
     }
 
     return Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
   }, []);
 
-  // Initialize chart
+  // BEAST MODE: Initialize chart with proper sequence
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    let chartInstance: any = null;
     let mounted = true;
 
     const initChart = async () => {
       try {
-        const lwc = await import('lightweight-charts');
-        const { createChart, ColorType, CrosshairMode, LineStyle, CandlestickSeries, HistogramSeries } = lwc;
-
-        if (!chartContainerRef.current || !mounted) return;
-
+        // Wait for container to have valid dimensions
         const container = chartContainerRef.current;
-        const width = container.clientWidth || 400;
-        const height = container.clientHeight || 300;
+        if (!container) return;
 
-        // Don't init if dimensions are invalid
-        if (width <= 0 || height <= 0) {
-          console.warn('[Chart] Invalid container dimensions, retrying...');
-          setTimeout(initChart, 100);
+        let attempts = 0;
+        while ((container.clientWidth <= 0 || container.clientHeight <= 0) && attempts < 20) {
+          await new Promise(r => setTimeout(r, 50));
+          attempts++;
+        }
+
+        if (!mounted || !container || container.clientWidth <= 0 || container.clientHeight <= 0) {
+          console.warn('[BeastChart] Container not ready after retries');
           return;
         }
 
+        const lwc = await import('lightweight-charts');
+        const { createChart, ColorType, CrosshairMode, LineStyle, CandlestickSeries, HistogramSeries } = lwc;
+
+        if (!mounted || !chartContainerRef.current) return;
+
         // Destroy existing chart
         if (chartRef.current) {
-          chartRef.current.remove();
+          try {
+            chartRef.current.remove();
+          } catch (e) {
+            // Ignore removal errors
+          }
           chartRef.current = null;
         }
 
-        chartInstance = createChart(container, {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        const chartInstance = createChart(container, {
           width,
           height,
-        layout: {
-          background: { type: ColorType.Solid, color: 'transparent' },
-          textColor: '#9ca3af',
-          fontFamily: "'JetBrains Mono', monospace",
-        },
-        grid: {
-          vertLines: { color: 'rgba(0, 255, 136, 0.05)', style: LineStyle.Dotted },
-          horzLines: { color: 'rgba(0, 255, 136, 0.05)', style: LineStyle.Dotted },
-        },
-        crosshair: {
-          mode: CrosshairMode.Normal,
-          vertLine: { color: 'rgba(0, 255, 136, 0.5)', labelBackgroundColor: '#00ff88' },
-          horzLine: { color: 'rgba(0, 255, 136, 0.5)', labelBackgroundColor: '#00ff88' },
-        },
-        rightPriceScale: {
-          borderColor: 'rgba(0, 255, 136, 0.2)',
-          scaleMargins: { top: 0.1, bottom: 0.2 },
-        },
-        timeScale: {
-          borderColor: 'rgba(0, 255, 136, 0.2)',
-          timeVisible: true,
-          secondsVisible: false,
-        },
-        handleScroll: { vertTouchDrag: false },
-      });
+          layout: {
+            background: { type: ColorType.Solid, color: 'transparent' },
+            textColor: '#9ca3af',
+            fontFamily: "'JetBrains Mono', monospace",
+          },
+          grid: {
+            vertLines: { color: 'rgba(0, 255, 136, 0.05)', style: LineStyle.Dotted },
+            horzLines: { color: 'rgba(0, 255, 136, 0.05)', style: LineStyle.Dotted },
+          },
+          crosshair: {
+            mode: CrosshairMode.Normal,
+            vertLine: { color: 'rgba(0, 255, 136, 0.5)', labelBackgroundColor: '#00ff88' },
+            horzLine: { color: 'rgba(0, 255, 136, 0.5)', labelBackgroundColor: '#00ff88' },
+          },
+          rightPriceScale: {
+            borderColor: 'rgba(0, 255, 136, 0.2)',
+            scaleMargins: { top: 0.1, bottom: 0.2 },
+          },
+          timeScale: {
+            borderColor: 'rgba(0, 255, 136, 0.2)',
+            timeVisible: true,
+            secondsVisible: true, // BEAST: Show seconds for precision
+          },
+          handleScroll: { vertTouchDrag: false },
+        });
 
-      const candleSeries = chartInstance.addSeries(CandlestickSeries, {
-        upColor: '#00ff88',
-        downColor: '#ef4444',
-        borderUpColor: '#00ff88',
-        borderDownColor: '#ef4444',
-        wickUpColor: '#00ff88',
-        wickDownColor: '#ef4444',
-      });
+        // Create series
+        const candleSeries = chartInstance.addSeries(CandlestickSeries, {
+          upColor: '#00ff88',
+          downColor: '#ef4444',
+          borderUpColor: '#00ff88',
+          borderDownColor: '#ef4444',
+          wickUpColor: '#00ff88',
+          wickDownColor: '#ef4444',
+        });
 
-      const volumeSeries = chartInstance.addSeries(HistogramSeries, {
-        color: '#00ff88',
-        priceFormat: { type: 'volume' },
-        priceScaleId: '',
-      });
-      volumeSeries.priceScale().applyOptions({
-        scaleMargins: { top: 0.85, bottom: 0 },
-      });
+        const volumeSeries = chartInstance.addSeries(HistogramSeries, {
+          color: '#00ff88',
+          priceFormat: { type: 'volume' },
+          priceScaleId: 'volume',
+        });
 
-      chartRef.current = chartInstance;
-      candleSeriesRef.current = candleSeries;
-      volumeSeriesRef.current = volumeSeries;
+        // ═══════════════════════════════════════════════════════════════════
+        // CRITICAL FIX: Set empty data BEFORE applying price scale options
+        // This prevents the .toString() crash on undefined values
+        // ═══════════════════════════════════════════════════════════════════
+        candleSeries.setData([]);
+        volumeSeries.setData([]);
 
-      // Safe ResizeObserver with cleanup
-      resizeObserverRef.current = new ResizeObserver((entries) => {
-        if (chartInstance && entries[0] && mounted) {
-          const { width, height } = entries[0].contentRect;
-          if (width > 0 && height > 0) {
-            chartInstance.applyOptions({ width, height });
+        // NOW it's safe to apply price scale options
+        volumeSeries.priceScale().applyOptions({
+          scaleMargins: { top: 0.85, bottom: 0 },
+        });
+
+        chartRef.current = chartInstance;
+        candleSeriesRef.current = candleSeries;
+        volumeSeriesRef.current = volumeSeries;
+        isChartReadyRef.current = true;
+
+        // Safe ResizeObserver
+        resizeObserverRef.current = new ResizeObserver((entries) => {
+          if (!mounted || !chartInstance) return;
+          try {
+            const entry = entries[0];
+            if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+              chartInstance.applyOptions({
+                width: entry.contentRect.width,
+                height: entry.contentRect.height,
+              });
+            }
+          } catch (e) {
+            // Ignore resize errors
           }
-        }
-      });
-      resizeObserverRef.current.observe(container);
+        });
+        resizeObserverRef.current.observe(container);
+
+        setChartError(null);
       } catch (err) {
-        console.error('[Chart] Failed to initialize chart:', err);
+        console.error('[BeastChart] Init failed:', err);
+        setChartError('Failed to initialize chart');
       }
     };
 
@@ -333,12 +377,17 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
     return () => {
       mounted = false;
+      isChartReadyRef.current = false;
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
       }
       if (chartRef.current) {
-        chartRef.current.remove();
+        try {
+          chartRef.current.remove();
+        } catch (e) {
+          // Ignore
+        }
         chartRef.current = null;
       }
     };
@@ -346,19 +395,19 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
   // Update chart data when trades or timeframe change
   useEffect(() => {
-    if (!candleSeriesRef.current || !volumeSeriesRef.current || trades.length === 0) return;
+    if (!isChartReadyRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+    if (trades.length === 0) return;
 
     try {
       const candles = tradesToCandles(trades, timeframe);
 
-      // Filter out invalid candles (must have valid time > 0 and valid price values)
+      // Filter valid candles
       const validCandles = candles.filter(c =>
         c.time > 0 &&
-        Number.isFinite(c.open) &&
-        Number.isFinite(c.high) &&
-        Number.isFinite(c.low) &&
-        Number.isFinite(c.close) &&
-        c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0
+        Number.isFinite(c.open) && c.open > 0 &&
+        Number.isFinite(c.high) && c.high > 0 &&
+        Number.isFinite(c.low) && c.low > 0 &&
+        Number.isFinite(c.close) && c.close > 0
       );
 
       if (validCandles.length > 0) {
@@ -376,35 +425,79 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           validCandles.map((c) => ({
             time: c.time,
             value: c.volume || 0,
-            color: c.close >= c.open ? 'rgba(0, 255, 136, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+            color: c.close >= c.open ? 'rgba(0, 255, 136, 0.4)' : 'rgba(239, 68, 68, 0.4)',
           }))
         );
 
         chartRef.current?.timeScale().fitContent();
       }
     } catch (err) {
-      console.error('[Chart] Failed to update chart data:', err);
+      console.error('[BeastChart] Data update failed:', err);
     }
   }, [trades, timeframe, tradesToCandles]);
 
+  // Initial fetch
+  useEffect(() => {
+    if (tokenAddress) {
+      fetchTrades();
+    }
+  }, [tokenAddress]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // BEAST MODE: Update EVERY BLOCK
+  useEffect(() => {
+    if (tokenAddress && blockNumber) {
+      fetchTrades();
+    }
+  }, [blockNumber]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const formatPrice = (price: number) => {
     if (price === 0) return '0';
+    if (price < 0.0000000001) return price.toExponential(6);
     if (price < 0.00000001) return price.toExponential(4);
+    if (price < 0.000001) return price.toFixed(12);
     if (price < 0.0001) return price.toFixed(10);
     if (price < 1) return price.toFixed(8);
     return price.toFixed(4);
   };
+
+  if (chartError) {
+    return (
+      <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center p-4">
+            <div className="text-6xl mb-4">⚠️</div>
+            <p className="text-red-400 text-sm font-mono mb-2">{chartError}</p>
+            <button
+              onClick={() => {
+                setChartError(null);
+                fetchTrades();
+              }}
+              className="px-4 py-2 bg-fud-green/20 text-fud-green rounded hover:bg-fud-green/30 font-mono text-sm"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-fud-green/20">
         <div className="flex items-center gap-3">
-          <span className="text-fud-green text-lg">📊</span>
-          <span className="font-display text-sm text-fud-green">PRICE CHART</span>
-          {isLoading && (
-            <RefreshCw size={12} className="text-fud-green animate-spin" />
-          )}
+          <Zap className="text-fud-green" size={18} />
+          <span className="font-display text-sm text-fud-green font-bold">BEAST CHART</span>
+          {isLoading && <RefreshCw size={12} className="text-fud-green animate-spin" />}
         </div>
         {currentPrice > 0 && (
           <div className="flex items-center gap-3">
@@ -417,19 +510,19 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
                 : 'bg-red-500/20 text-red-400'
             }`}>
               {priceChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              {Math.abs(priceChange).toFixed(2)}%
+              {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
             </span>
           </div>
         )}
       </div>
 
-      {/* Timeframe Buttons */}
+      {/* BEAST Timeframe Buttons */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-fud-green/10 bg-dark-secondary/30">
-        {(['1M', '5M', '15M', '1H', '4H', '1D'] as TimeFrame[]).map((tf) => (
+        {(['5S', '15S', '1M', '5M', '15M', '1H', '4H', '1D'] as TimeFrame[]).map((tf) => (
           <button
             key={tf}
             onClick={() => setTimeframe(tf)}
-            className={`px-3 py-1.5 text-[10px] font-mono rounded transition-all ${
+            className={`px-2 py-1 text-[10px] font-mono rounded transition-all ${
               timeframe === tf
                 ? 'text-black bg-fud-green font-bold shadow-lg shadow-fud-green/30'
                 : 'text-text-muted hover:text-fud-green hover:bg-fud-green/10'
@@ -455,7 +548,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             <div className="absolute inset-0 flex items-center justify-center bg-dark-primary/80">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-10 h-10 border-3 border-fud-green/30 border-t-fud-green rounded-full animate-spin" />
-                <span className="text-fud-green text-xs font-mono">Loading chart data...</span>
+                <span className="text-fud-green text-xs font-mono">Loading beast data...</span>
               </div>
             </div>
           )}
@@ -465,10 +558,10 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       {/* Footer */}
       <div className="px-4 py-2 border-t border-fud-green/10 bg-dark-secondary/30 flex items-center justify-between">
         <span className="text-[10px] font-mono text-text-muted">
-          {lastUpdate ? `Updated ${lastUpdate.toLocaleTimeString()}` : 'Waiting for data...'}
+          {lastUpdate ? `Updated ${lastUpdate.toLocaleTimeString()}` : 'Waiting...'}
         </span>
         <span className="text-[10px] font-mono text-fud-green">
-          {trades.length} trades
+          {tradeCount} trades | Block #{blockNumber?.toString() || '...'}
         </span>
       </div>
     </div>
