@@ -1,28 +1,24 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { usePublicClient, useBlockNumber } from 'wagmi';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { usePublicClient } from 'wagmi';
 import { parseAbiItem, formatUnits } from 'viem';
-import { Info, Clock, User, Zap, TrendingUp, ExternalLink, RefreshCw } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { useBlockRefresh } from '@/hooks/useSharedBlockNumber';
+import { Info, Trophy, Users, Zap, ExternalLink, Crown } from 'lucide-react';
 import { formatAddress } from '@/lib/utils';
 
 interface FirstBuyData {
   buyer: `0x${string}`;
   plsSpent: bigint;
   tokensBought: bigint;
-  timestamp: number;
-  txHash: `0x${string}`;
-  blockNumber: bigint;
+  rank: number;
 }
 
 interface TokenStats {
   totalBuys: number;
   totalSells: number;
   uniqueBuyers: number;
-  uniqueSellers: number;
   totalVolumePls: bigint;
-  averageBuySize: bigint;
   largestBuy: bigint;
   largestBuyer: `0x${string}` | null;
 }
@@ -38,12 +34,12 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
   const [stats, setStats] = useState<TokenStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'first' | 'stats'>('first');
+  const isMountedRef = useRef(true);
 
   const publicClient = usePublicClient();
-  const { data: blockNumber } = useBlockNumber({ watch: true });
 
   const fetchData = useCallback(async () => {
-    if (!tokenAddress || !publicClient) return;
+    if (!tokenAddress || !publicClient || !isMountedRef.current) return;
 
     setIsLoading(true);
     try {
@@ -51,7 +47,7 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
       const sellEvent = parseAbiItem('event TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)');
 
       const currentBlock = await publicClient.getBlockNumber();
-      const fromBlock = currentBlock - BigInt(100000);
+      const fromBlock = currentBlock - BigInt(30000);
 
       const [buyLogs, sellLogs] = await Promise.all([
         publicClient.getLogs({
@@ -68,6 +64,9 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
         }),
       ]);
 
+      if (!isMountedRef.current) return;
+
+      // Sort by block/index to get first buyers
       const sortedBuyLogs = [...buyLogs].sort((a, b) => {
         if (a.blockNumber !== b.blockNumber) return Number(a.blockNumber - b.blockNumber);
         return Number(a.logIndex - b.logIndex);
@@ -75,53 +74,31 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
 
       const firstBuyerSet = new Set<string>();
       const firstBuysData: FirstBuyData[] = [];
-
-      const uniqueBlocks = [...new Set(sortedBuyLogs.slice(0, 20).map(l => l.blockNumber))];
-      const blockTimestamps: Record<string, number> = {};
-
-      await Promise.all(
-        uniqueBlocks.map(async (bn) => {
-          try {
-            const block = await publicClient.getBlock({ blockNumber: bn });
-            blockTimestamps[bn.toString()] = Number(block.timestamp);
-          } catch {
-            blockTimestamps[bn.toString()] = Math.floor(Date.now() / 1000);
-          }
-        })
-      );
+      let rank = 1;
 
       for (const log of sortedBuyLogs) {
         const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint };
-        if (!args.buyer) continue;
-
-        const buyerLower = args.buyer.toLowerCase();
-
-        if (!firstBuyerSet.has(buyerLower)) {
-          firstBuyerSet.add(buyerLower);
+        if (args.buyer && !firstBuyerSet.has(args.buyer.toLowerCase())) {
+          firstBuyerSet.add(args.buyer.toLowerCase());
           firstBuysData.push({
             buyer: args.buyer,
             plsSpent: args.plsSpent,
             tokensBought: args.tokensBought,
-            timestamp: blockTimestamps[log.blockNumber.toString()] || Math.floor(Date.now() / 1000),
-            txHash: log.transactionHash,
-            blockNumber: log.blockNumber,
+            rank: rank++,
           });
-
-          if (firstBuysData.length >= 10) break;
+          if (rank > 10) break;
         }
       }
 
-      setFirstBuys(firstBuysData);
-
-      const uniqueBuyers = new Set(buyLogs.map(l => (l.args as { buyer: `0x${string}` }).buyer?.toLowerCase()));
-      const uniqueSellers = new Set(sellLogs.map(l => (l.args as { seller: `0x${string}` }).seller?.toLowerCase()));
-
+      // Calculate stats
+      const uniqueBuyers = new Set<string>();
       let totalVolume = BigInt(0);
       let largestBuy = BigInt(0);
       let largestBuyer: `0x${string}` | null = null;
 
       for (const log of buyLogs) {
         const args = log.args as { buyer: `0x${string}`; plsSpent: bigint };
+        if (args.buyer) uniqueBuyers.add(args.buyer.toLowerCase());
         if (args.plsSpent) {
           totalVolume += args.plsSpent;
           if (args.plsSpent > largestBuy) {
@@ -133,40 +110,40 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
 
       for (const log of sellLogs) {
         const args = log.args as { plsReceived: bigint };
-        if (args.plsReceived) {
-          totalVolume += args.plsReceived;
-        }
+        if (args.plsReceived) totalVolume += args.plsReceived;
       }
 
+      if (!isMountedRef.current) return;
+
+      setFirstBuys(firstBuysData);
       setStats({
         totalBuys: buyLogs.length,
         totalSells: sellLogs.length,
         uniqueBuyers: uniqueBuyers.size,
-        uniqueSellers: uniqueSellers.size,
         totalVolumePls: totalVolume,
-        averageBuySize: buyLogs.length > 0 ? totalVolume / BigInt(buyLogs.length) : BigInt(0),
         largestBuy,
         largestBuyer,
       });
-
     } catch (err) {
-      console.error('Failed to fetch token info:', err);
+      console.error('[InfoPanel] Error:', err);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) setIsLoading(false);
     }
   }, [tokenAddress, publicClient]);
 
-  useEffect(() => {
-    if (tokenAddress) {
-      fetchData();
-    }
-  }, [tokenAddress, fetchData]);
+  // Use shared block refresh
+  useBlockRefresh('info', fetchData, 30, !!tokenAddress);
 
+  // Initial fetch
   useEffect(() => {
-    if (tokenAddress && blockNumber && Number(blockNumber) % 30 === 0) {
-      fetchData();
-    }
-  }, [blockNumber, tokenAddress, fetchData]);
+    if (tokenAddress) fetchData();
+  }, [tokenAddress]); // fetchData intentionally excluded
+
+  // Cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   const formatPls = (amount: bigint): string => {
     const num = Number(formatUnits(amount, 18));
@@ -175,142 +152,90 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
     return num.toFixed(2);
   };
 
-  const formatTokens = (amount: bigint): string => {
-    const num = Number(formatUnits(amount, 18));
-    if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(2) + 'B';
-    if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';
-    if (num >= 1_000) return (num / 1_000).toFixed(2) + 'K';
-    return num.toFixed(2);
-  };
-
-  const formatTime = (timestamp: number): string => {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const timeAgo = (timestamp: number): string => {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
+  const getRankIcon = (rank: number) => {
+    if (rank === 1) return <Crown size={14} className="text-yellow-400" />;
+    if (rank === 2) return <Crown size={14} className="text-gray-300" />;
+    if (rank === 3) return <Crown size={14} className="text-amber-600" />;
+    return <span className="text-[10px] font-bold text-text-muted">#{rank}</span>;
   };
 
   return (
-    <Card className="h-full flex flex-col" variant="glow">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Info size={18} className="text-fud-purple" />
-            <CardTitle>Token Info</CardTitle>
-          </div>
-          <button
-            onClick={fetchData}
-            disabled={isLoading}
-            className="p-1 hover:bg-dark-tertiary rounded transition-colors"
-          >
-            <RefreshCw size={14} className={`text-text-muted ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
+    <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-fud-green/20">
+        <div className="flex items-center gap-2">
+          <Info size={18} className="text-fud-green" />
+          <span className="font-display text-sm text-fud-green">TOKEN INFO</span>
         </div>
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={() => setActiveTab('first')}
-            className={`px-3 py-1 text-xs font-mono rounded transition-colors ${
-              activeTab === 'first'
-                ? 'bg-fud-green/20 text-fud-green border border-fud-green/50'
-                : 'text-text-muted hover:text-text-primary border border-border-primary'
-            }`}
-          >
-            First Buys
-          </button>
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={`px-3 py-1 text-xs font-mono rounded transition-colors ${
-              activeTab === 'stats'
-                ? 'bg-fud-purple/20 text-fud-purple border border-fud-purple/50'
-                : 'text-text-muted hover:text-text-primary border border-border-primary'
-            }`}
-          >
-            Stats
-          </button>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-hidden">
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-fud-green/10">
+        <button
+          onClick={() => setActiveTab('first')}
+          className={`flex-1 py-2 text-xs font-mono flex items-center justify-center gap-1 transition-all ${
+            activeTab === 'first'
+              ? 'text-fud-green border-b-2 border-fud-green bg-fud-green/10'
+              : 'text-text-muted hover:text-text-primary'
+          }`}
+        >
+          <Trophy size={12} />
+          First Buyers
+        </button>
+        <button
+          onClick={() => setActiveTab('stats')}
+          className={`flex-1 py-2 text-xs font-mono flex items-center justify-center gap-1 transition-all ${
+            activeTab === 'stats'
+              ? 'text-fud-green border-b-2 border-fud-green bg-fud-green/10'
+              : 'text-text-muted hover:text-text-primary'
+          }`}
+        >
+          <Zap size={12} />
+          Stats
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-3">
         {!tokenAddress ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
-              <Info size={48} className="mx-auto mb-2 text-text-muted opacity-50" />
-              <p className="text-text-muted text-sm font-mono">Select a token</p>
+              <Info size={32} className="mx-auto mb-2 text-text-muted opacity-50" />
+              <p className="text-text-muted text-xs font-mono">Select a token</p>
             </div>
           </div>
         ) : isLoading && firstBuys.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-8 h-8 border-2 border-fud-purple/30 border-t-fud-purple rounded-full animate-spin mx-auto mb-2" />
-              <p className="text-text-muted text-sm font-mono">Loading...</p>
-            </div>
+            <div className="w-6 h-6 border-2 border-fud-green/30 border-t-fud-green rounded-full animate-spin" />
           </div>
         ) : activeTab === 'first' ? (
-          <div className="h-full overflow-y-auto space-y-2 pr-1">
+          <div className="space-y-2">
             {firstBuys.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <p className="text-text-muted text-sm font-mono">No buys yet</p>
-              </div>
+              <p className="text-center text-text-muted text-xs font-mono py-4">No buyers yet</p>
             ) : (
-              firstBuys.map((buy, idx) => (
+              firstBuys.map((fb) => (
                 <div
-                  key={buy.txHash}
-                  className={`p-2 rounded-lg border transition-colors ${
-                    creator && buy.buyer.toLowerCase() === creator.toLowerCase()
-                      ? 'bg-fud-orange/10 border-fud-orange/30'
-                      : 'bg-dark-tertiary/50 border-border-primary'
+                  key={fb.buyer}
+                  className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                    fb.rank <= 3 ? 'bg-fud-green/10 border border-fud-green/20' : 'bg-dark-tertiary/50'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-fud-green">#{idx + 1}</span>
-                      <a
-                        href={`https://scan.pulsechain.com/address/${buy.buyer}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-mono text-text-primary hover:text-fud-green flex items-center gap-1"
-                      >
-                        {formatAddress(buy.buyer)}
-                        <ExternalLink size={10} className="opacity-50" />
-                      </a>
-                      {creator && buy.buyer.toLowerCase() === creator.toLowerCase() && (
-                        <span className="text-xs bg-fud-orange/20 text-fud-orange px-1.5 py-0.5 rounded font-mono">
-                          DEV
-                        </span>
-                      )}
-                    </div>
+                  <div className="w-6 flex items-center justify-center">
+                    {getRankIcon(fb.rank)}
+                  </div>
+                  <div className="flex-1 min-w-0">
                     <a
-                      href={`https://scan.pulsechain.com/tx/${buy.txHash}`}
+                      href={`https://scan.pulsechain.com/address/${fb.buyer}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-text-muted hover:text-fud-green"
+                      className="text-xs font-mono text-fud-green hover:underline flex items-center gap-1"
                     >
-                      <ExternalLink size={12} />
+                      {formatAddress(fb.buyer)}
+                      <ExternalLink size={10} />
                     </a>
-                  </div>
-                  <div className="flex items-center justify-between text-xs font-mono">
-                    <div className="flex items-center gap-1 text-fud-green">
-                      <Zap size={12} />
-                      {formatPls(buy.plsSpent)} PLS
-                    </div>
-                    <div className="text-text-muted">
-                      → {formatTokens(buy.tokensBought)} {tokenSymbol || 'tokens'}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-text-muted mt-1">
-                    <Clock size={10} />
-                    {formatTime(buy.timestamp)} ({timeAgo(buy.timestamp)})
+                    <p className="text-[10px] font-mono text-text-muted">
+                      {formatPls(fb.plsSpent)} PLS
+                    </p>
                   </div>
                 </div>
               ))
@@ -321,61 +246,36 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
             {stats && (
               <>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2 bg-dark-tertiary/50 rounded-lg border border-border-primary">
-                    <div className="text-xs text-text-muted font-mono mb-1">Total Buys</div>
-                    <div className="text-lg font-display text-fud-green">{stats.totalBuys}</div>
+                  <div className="bg-dark-tertiary/50 p-3 rounded-lg">
+                    <p className="text-[10px] font-mono text-text-muted mb-1">Total Buys</p>
+                    <p className="text-lg font-display text-fud-green">{stats.totalBuys}</p>
                   </div>
-                  <div className="p-2 bg-dark-tertiary/50 rounded-lg border border-border-primary">
-                    <div className="text-xs text-text-muted font-mono mb-1">Total Sells</div>
-                    <div className="text-lg font-display text-fud-red">{stats.totalSells}</div>
+                  <div className="bg-dark-tertiary/50 p-3 rounded-lg">
+                    <p className="text-[10px] font-mono text-text-muted mb-1">Total Sells</p>
+                    <p className="text-lg font-display text-orange-400">{stats.totalSells}</p>
                   </div>
-                  <div className="p-2 bg-dark-tertiary/50 rounded-lg border border-border-primary">
-                    <div className="text-xs text-text-muted font-mono mb-1">Unique Buyers</div>
-                    <div className="text-lg font-display text-text-primary flex items-center gap-1">
-                      <User size={14} />
-                      {stats.uniqueBuyers}
-                    </div>
+                  <div className="bg-dark-tertiary/50 p-3 rounded-lg">
+                    <p className="text-[10px] font-mono text-text-muted mb-1">Unique Buyers</p>
+                    <p className="text-lg font-display text-text-primary">{stats.uniqueBuyers}</p>
                   </div>
-                  <div className="p-2 bg-dark-tertiary/50 rounded-lg border border-border-primary">
-                    <div className="text-xs text-text-muted font-mono mb-1">Unique Sellers</div>
-                    <div className="text-lg font-display text-text-primary flex items-center gap-1">
-                      <User size={14} />
-                      {stats.uniqueSellers}
-                    </div>
+                  <div className="bg-dark-tertiary/50 p-3 rounded-lg">
+                    <p className="text-[10px] font-mono text-text-muted mb-1">Volume</p>
+                    <p className="text-lg font-display text-text-primary">{formatPls(stats.totalVolumePls)}</p>
                   </div>
                 </div>
-
-                <div className="p-3 bg-dark-tertiary/50 rounded-lg border border-fud-green/30">
-                  <div className="text-xs text-text-muted font-mono mb-1">Total Volume</div>
-                  <div className="text-xl font-display text-fud-green">
-                    {formatPls(stats.totalVolumePls)} PLS
-                  </div>
-                </div>
-
-                <div className="p-3 bg-dark-tertiary/50 rounded-lg border border-border-primary">
-                  <div className="text-xs text-text-muted font-mono mb-1">Avg Buy Size</div>
-                  <div className="text-lg font-display text-text-primary">
-                    {formatPls(stats.averageBuySize)} PLS
-                  </div>
-                </div>
-
                 {stats.largestBuyer && (
-                  <div className="p-3 bg-fud-purple/10 rounded-lg border border-fud-purple/30">
-                    <div className="text-xs text-text-muted font-mono mb-1 flex items-center gap-1">
-                      <TrendingUp size={12} />
-                      Largest Buy
-                    </div>
-                    <div className="text-lg font-display text-fud-purple mb-1">
-                      {formatPls(stats.largestBuy)} PLS
-                    </div>
+                  <div className="bg-fud-green/10 border border-fud-green/20 p-3 rounded-lg">
+                    <p className="text-[10px] font-mono text-fud-green mb-1 flex items-center gap-1">
+                      <Crown size={12} /> Biggest Buy
+                    </p>
+                    <p className="text-sm font-mono text-text-primary">{formatPls(stats.largestBuy)} PLS</p>
                     <a
                       href={`https://scan.pulsechain.com/address/${stats.largestBuyer}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs font-mono text-text-muted hover:text-fud-purple flex items-center gap-1"
+                      className="text-[10px] font-mono text-fud-green hover:underline"
                     >
                       {formatAddress(stats.largestBuyer)}
-                      <ExternalLink size={10} />
                     </a>
                   </div>
                 )}
@@ -383,7 +283,7 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
             )}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

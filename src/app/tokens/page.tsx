@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useReadContract } from 'wagmi';
+import { useReadContract, useReadContracts } from 'wagmi';
 import {
   TrendingUp,
   Zap,
@@ -21,7 +21,7 @@ import {
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { FACTORY_ABI } from '@/config/abis';
+import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS } from '@/config/wagmi';
 import { formatAddress } from '@/lib/utils';
 import { useSiteSettings } from '@/stores/siteSettingsStore';
@@ -58,44 +58,67 @@ function TokensPageContent() {
 
   const { tokenCardPattern, tokenCardPatternOpacity, hiddenTokens } = useSiteSettings();
 
-  // Fetch all tokens from factory
-  const { data: tokenAddresses, refetch, isRefetching } = useReadContract({
+  // V2: Fetch token addresses from factory
+  const { data: tokenAddressesRaw, refetch, isRefetching } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'getAllTokens',
+    functionName: 'getTokens',
     args: [BigInt(0), BigInt(100)],
     query: { enabled: !!CONTRACTS.FACTORY },
   });
 
-  // Load token details
+  // V2: Build multicall to get token data from each token contract
+  const tokenDataContracts = (tokenAddressesRaw || []).flatMap((addr) => [
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
+  ]);
+
+  const { data: tokenData } = useReadContracts({
+    contracts: tokenDataContracts as any,
+    query: { enabled: tokenDataContracts.length > 0 },
+  });
+
+  // Load token details from V2 multicall
   useEffect(() => {
-    const loadTokens = async () => {
-      if (!tokenAddresses || tokenAddresses.length === 0) {
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-
-      // Process token structs from contract
-      const tokenInfos: TokenInfo[] = tokenAddresses
-        .filter((token) => !hiddenTokens.some((h) => h.toLowerCase() === (token.tokenAddress as string).toLowerCase()))
-        .filter((token) => token.status === 0 || token.status === 1) // Live (0) or Graduated (1)
-        .map((token) => ({
-          address: token.tokenAddress as `0x${string}`,
-          name: token.name || 'Unknown',
-          symbol: token.symbol || '???',
-          graduated: token.status === 1, // Graduated status
-          createdAt: Number(token.createdAt) * 1000, // Convert to ms
-          priceChange: 0, // Would need price data
-        }));
-
-      setTokens(tokenInfos);
+    if (!tokenAddressesRaw || tokenAddressesRaw.length === 0 || !tokenData) {
       setIsLoading(false);
-    };
+      setTokens([]);
+      return;
+    }
 
-    loadTokens();
-  }, [tokenAddresses, hiddenTokens]);
+    setIsLoading(true);
+    const tokenInfos: TokenInfo[] = [];
+    const fieldsPerToken = 4; // name, symbol, graduated, deleted
+
+    for (let i = 0; i < tokenAddressesRaw.length; i++) {
+      const baseIndex = i * fieldsPerToken;
+      const addr = tokenAddressesRaw[i] as `0x${string}`;
+      const name = tokenData[baseIndex]?.result as string;
+      const symbol = tokenData[baseIndex + 1]?.result as string;
+      const graduated = tokenData[baseIndex + 2]?.result as boolean || false;
+      const deleted = tokenData[baseIndex + 3]?.result as boolean || false;
+
+      // Skip deleted or hidden tokens
+      if (deleted) continue;
+      if (hiddenTokens.some((h) => h.toLowerCase() === addr.toLowerCase())) continue;
+
+      if (name && symbol) {
+        tokenInfos.push({
+          address: addr,
+          name,
+          symbol,
+          graduated,
+          createdAt: 0, // V2 doesn't store createdAt
+          priceChange: 0, // Would need price data
+        });
+      }
+    }
+
+    setTokens(tokenInfos);
+    setIsLoading(false);
+  }, [tokenAddressesRaw, tokenData, hiddenTokens]);
 
   // Filter and search tokens
   const filteredTokens = useMemo(() => {

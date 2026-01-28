@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useReadContract, useReadContracts } from 'wagmi';
-import { Clock, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS, CONSTANTS } from '@/config/wagmi';
@@ -24,7 +24,6 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
   const [isLoading, setIsLoading] = useState(true);
   const { hiddenTokens } = useSiteSettings();
 
-  // Filter title based on active filter
   const filterTitles: Record<FilterType, string> = {
     live: 'Live Tokens',
     rising: 'Rising Tokens',
@@ -32,61 +31,73 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
     graduated: 'Graduated Tokens',
   };
 
-  // Fetch all tokens from factory (returns structs with all data)
-  const { data: allTokensData } = useReadContract({
+  // V2 Factory: getTokens returns array of token addresses
+  const { data: tokenAddresses } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'getAllTokens',
+    functionName: 'getTokens',
     args: [BigInt(0), BigInt(limit)],
     query: { enabled: !!CONTRACTS.FACTORY },
   });
 
-  // Extract token addresses for multicall to get price/progress data
-  const tokenAddresses = allTokensData?.map((t) => t.tokenAddress as `0x${string}`) || [];
+  // Build multicall to get all token data from each token contract
+  const tokenDataContracts = (tokenAddresses || []).flatMap((addr) => [
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'imageUri' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'description' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'creator' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'plsReserve' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'getCurrentPrice' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'getGraduationProgress' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'totalSupply' },
+  ]);
 
-  // Build multicall for price/progress data (not in factory struct)
-  const priceContracts = tokenAddresses?.flatMap((addr) => [
-    { address: addr, abi: TOKEN_ABI, functionName: 'getCurrentPrice' },
-    { address: addr, abi: TOKEN_ABI, functionName: 'getGraduationProgress' },
-    { address: addr, abi: TOKEN_ABI, functionName: 'totalSupply' },
-  ]) || [];
-
-  const { data: priceData } = useReadContracts({
-    contracts: priceContracts as any,
-    query: { enabled: priceContracts.length > 0 },
+  const { data: tokenData } = useReadContracts({
+    contracts: tokenDataContracts as any,
+    query: { enabled: tokenDataContracts.length > 0 },
   });
 
-  // Process token data into usable format
+  // Process token data
   useEffect(() => {
-    if (!allTokensData) {
+    if (!tokenAddresses || tokenAddresses.length === 0) {
       setIsLoading(false);
       return;
     }
 
     const processedTokens: Token[] = [];
-    const fieldsPerToken = 3; // getCurrentPrice, getGraduationProgress, totalSupply
+    const fieldsPerToken = 11; // name, symbol, imageUri, description, creator, plsReserve, graduated, deleted, getCurrentPrice, getGraduationProgress, totalSupply
 
-    for (let i = 0; i < allTokensData.length; i++) {
-      const token = allTokensData[i];
-
-      // Skip non-live tokens (status 0 = Live, 1 = Graduated, 2 = Paused, 3 = Delisted)
-      if (token.status !== 0 && token.status !== 1) continue;
-
+    for (let i = 0; i < tokenAddresses.length; i++) {
       const baseIndex = i * fieldsPerToken;
-      const currentPrice = priceData?.[baseIndex]?.result as bigint || BigInt(0);
-      const graduationProgress = priceData?.[baseIndex + 1]?.result as bigint || BigInt(0);
-      const totalSupply = priceData?.[baseIndex + 2]?.result as bigint || BigInt(0);
 
-      if (token.name && token.symbol) {
+      const name = tokenData?.[baseIndex]?.result as string;
+      const symbol = tokenData?.[baseIndex + 1]?.result as string;
+      const imageUri = tokenData?.[baseIndex + 2]?.result as string;
+      const description = tokenData?.[baseIndex + 3]?.result as string;
+      const creator = tokenData?.[baseIndex + 4]?.result as `0x${string}`;
+      const plsReserve = tokenData?.[baseIndex + 5]?.result as bigint || BigInt(0);
+      const graduated = tokenData?.[baseIndex + 6]?.result as boolean || false;
+      const deleted = tokenData?.[baseIndex + 7]?.result as boolean || false;
+      const currentPrice = tokenData?.[baseIndex + 8]?.result as bigint || BigInt(0);
+      const graduationProgress = tokenData?.[baseIndex + 9]?.result as bigint || BigInt(0);
+      const totalSupply = tokenData?.[baseIndex + 10]?.result as bigint || BigInt(0);
+
+      // Skip deleted tokens
+      if (deleted) continue;
+
+      if (name && symbol) {
         processedTokens.push({
-          address: token.tokenAddress as `0x${string}`,
-          name: token.name,
-          symbol: token.symbol,
-          imageUri: token.imageUri || '',
-          description: token.description || '',
-          creator: token.creator as `0x${string}`,
-          plsReserve: token.reserveBalance || BigInt(0),
-          graduated: token.status === 1,
+          address: tokenAddresses[i] as `0x${string}`,
+          name,
+          symbol,
+          imageUri: imageUri || '',
+          description: description || '',
+          creator: creator || '0x0000000000000000000000000000000000000000',
+          plsReserve,
+          graduated,
           currentPrice,
           graduationProgress: Number(graduationProgress),
           totalSupply,
@@ -108,22 +119,19 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
         visibleTokens = visibleTokens.filter((t) => t.graduated);
         break;
       case 'rising':
-        // Sort by reserve (proxy for activity/rising)
         visibleTokens = visibleTokens
           .filter((t) => !t.graduated)
           .sort((a, b) => Number(b.plsReserve - a.plsReserve));
         break;
       case 'new':
-        // All tokens sorted by most recent (already sorted by contract)
         visibleTokens = visibleTokens.filter((t) => !t.graduated);
         break;
     }
 
     setTokens(visibleTokens);
     setIsLoading(false);
-  }, [allTokensData, priceData, hiddenTokens, filter]);
+  }, [tokenAddresses, tokenData, hiddenTokens, filter]);
 
-  // Calculate progress percentage
   const getProgressPercent = (reserve: bigint): number => {
     if (!reserve) return 0;
     const threshold = CONSTANTS.GRADUATION_THRESHOLD;
@@ -195,7 +203,6 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                 className="p-4 hover:border-fud-green/50 transition-all cursor-pointer group h-full"
               >
                 <div className="flex gap-3 mb-3">
-                  {/* Token Image */}
                   <div className="w-16 h-16 rounded-lg bg-dark-tertiary overflow-hidden flex items-center justify-center flex-shrink-0">
                     {token.imageUri ? (
                       <img
@@ -213,12 +220,22 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                     )}
                   </div>
 
-                  {/* Token Info */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-display text-fud-green truncate group-hover:animate-glow">
-                      {token.name}
+                    <h3 className="font-display truncate group-hover:animate-glow">
+                      {token.name && token.name.includes('.') ? (
+                        <>
+                          <span className="text-fud-green" style={{ textShadow: '0 0 8px #00ff88' }}>
+                            {token.name.split('.')[0]}
+                          </span>
+                          <span className="text-white" style={{ textShadow: '0 0 8px #ffffff' }}>
+                            .{token.name.split('.').slice(1).join('.')}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-fud-green">{token.name}</span>
+                      )}
                     </h3>
-                    <p className="text-text-muted text-sm font-mono">${token.symbol}</p>
+                    <p className="text-white text-sm font-mono">{token.symbol}</p>
                     {token.graduated && (
                       <span className="inline-block mt-1 px-2 py-0.5 bg-fud-orange/20 text-fud-orange text-[10px] font-mono rounded">
                         GRADUATED
@@ -227,7 +244,6 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                   </div>
                 </div>
 
-                {/* Stats Row */}
                 <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-mono">
                   <div>
                     <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
@@ -243,13 +259,12 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                   </div>
                 </div>
 
-                {/* Progress Bar */}
                 {!token.graduated && (
                   <div>
                     <div className="flex justify-between text-[10px] font-mono mb-1">
-                      <span className="text-text-muted">Progress to Graduation</span>
+                      <span className="text-text-muted">Bonding Progress</span>
                       <span className="text-fud-green">
-                        {progressPercent.toFixed(1)}% / {formatPLS(CONSTANTS.GRADUATION_THRESHOLD)} PLS
+                        {progressPercent.toFixed(1)}% to BOND
                       </span>
                     </div>
                     <div className="h-2 bg-dark-tertiary rounded-full overflow-hidden">

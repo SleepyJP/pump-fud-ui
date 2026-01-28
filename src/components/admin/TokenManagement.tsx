@@ -1,28 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useReadContract } from 'wagmi';
+import { useReadContract, useReadContracts } from 'wagmi';
 import { Trash2, RefreshCw, ExternalLink, EyeOff, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { FACTORY_ABI } from '@/config/abis';
+import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS } from '@/config/wagmi';
 import { formatAddress } from '@/lib/utils';
 import { useSiteSettings } from '@/stores/siteSettingsStore';
 
-// Token status enum matching contract
-enum TokenStatus {
-  Live = 0,
-  Graduated = 1,
-  Paused = 2,
-  Delisted = 3,
-}
-
 interface TokenInfo {
-  id: bigint;
   address: `0x${string}`;
   name: string;
   symbol: string;
-  status: TokenStatus;
+  graduated: boolean;
+  deleted: boolean;
   selected: boolean;
   isHidden: boolean;
 }
@@ -35,43 +27,65 @@ export function TokenManagement() {
   const { hiddenTokens, hideToken, unhideToken } = useSiteSettings();
   const factoryAddress = CONTRACTS.FACTORY;
 
-  // Get all tokens from factory
-  const { data: allTokensData, refetch: refetchTokens, isLoading: isLoadingTokens } = useReadContract({
+  // V2: Get token addresses from factory
+  const { data: tokenAddresses, refetch: refetchTokens, isLoading: isLoadingTokens } = useReadContract({
     address: factoryAddress,
     abi: FACTORY_ABI,
-    functionName: 'getAllTokens',
+    functionName: 'getTokens',
     args: [BigInt(0), BigInt(100)],
     query: { enabled: !!factoryAddress },
   });
 
+  // V2: Build multicall to get token data
+  const tokenDataContracts = (tokenAddresses || []).flatMap((addr) => [
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
+  ]);
+
+  const { data: tokenData } = useReadContracts({
+    contracts: tokenDataContracts as any,
+    query: { enabled: tokenDataContracts.length > 0 },
+  });
+
   // Process tokens when loaded
   useEffect(() => {
-    if (!allTokensData) {
+    if (!tokenAddresses || tokenAddresses.length === 0 || !tokenData) {
       setTokens([]);
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
     const tokenInfos: TokenInfo[] = [];
+    const fieldsPerToken = 4; // name, symbol, graduated, deleted
 
-    for (const token of allTokensData) {
-      const addr = token.tokenAddress as `0x${string}`;
+    for (let i = 0; i < tokenAddresses.length; i++) {
+      const baseIndex = i * fieldsPerToken;
+      const addr = tokenAddresses[i] as `0x${string}`;
+      const name = tokenData[baseIndex]?.result as string;
+      const symbol = tokenData[baseIndex + 1]?.result as string;
+      const graduated = tokenData[baseIndex + 2]?.result as boolean || false;
+      const deleted = tokenData[baseIndex + 3]?.result as boolean || false;
       const isHidden = hiddenTokens.some((h) => h.toLowerCase() === addr.toLowerCase());
 
-      tokenInfos.push({
-        id: token.id,
-        address: addr,
-        name: token.name || 'Unknown',
-        symbol: token.symbol || '???',
-        status: token.status as TokenStatus,
-        selected: false,
-        isHidden,
-      });
+      if (name && symbol) {
+        tokenInfos.push({
+          address: addr,
+          name,
+          symbol,
+          graduated,
+          deleted,
+          selected: false,
+          isHidden,
+        });
+      }
     }
 
     setTokens(tokenInfos);
     setIsLoading(false);
-  }, [allTokensData, hiddenTokens]);
+  }, [tokenAddresses, tokenData, hiddenTokens]);
 
   const toggleSelect = (address: `0x${string}`) => {
     setTokens((prev) =>
@@ -103,24 +117,15 @@ export function TokenManagement() {
     }
   };
 
-  const getStatusLabel = (status: TokenStatus) => {
-    switch (status) {
-      case TokenStatus.Live:
-        return { label: 'LIVE', color: 'text-fud-green bg-fud-green/20' };
-      case TokenStatus.Graduated:
-        return { label: 'GRADUATED', color: 'text-fud-green bg-fud-green/20' };
-      case TokenStatus.Paused:
-        return { label: 'PAUSED', color: 'text-fud-orange bg-fud-orange/20' };
-      case TokenStatus.Delisted:
-        return { label: 'DELISTED', color: 'text-fud-red bg-fud-red/20' };
-      default:
-        return { label: 'UNKNOWN', color: 'text-text-muted bg-dark-tertiary' };
-    }
+  const getStatusLabel = (token: TokenInfo) => {
+    if (token.deleted) return { label: 'DELETED', color: 'text-fud-red bg-fud-red/20' };
+    if (token.graduated) return { label: 'GRADUATED', color: 'text-fud-orange bg-fud-orange/20' };
+    return { label: 'LIVE', color: 'text-fud-green bg-fud-green/20' };
   };
 
   const selectedCount = tokens.filter((t) => t.selected).length;
   const hiddenCount = tokens.filter((t) => t.isHidden).length;
-  const liveCount = tokens.filter((t) => t.status === TokenStatus.Live).length;
+  const liveCount = tokens.filter((t) => !t.graduated && !t.deleted).length;
   const visibleTokens = showHidden ? tokens : tokens.filter((t) => !t.isHidden);
 
   return (
@@ -207,7 +212,7 @@ export function TokenManagement() {
       ) : (
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
           {visibleTokens.map((token) => {
-            const statusInfo = getStatusLabel(token.status);
+            const statusInfo = getStatusLabel(token);
 
             return (
               <div
@@ -228,9 +233,6 @@ export function TokenManagement() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-text-muted font-mono text-xs">
-                      #{token.id.toString()}
-                    </span>
                     <span className="text-text-primary font-mono text-sm font-semibold">
                       {token.name}
                     </span>

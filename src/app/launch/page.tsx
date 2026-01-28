@@ -31,7 +31,6 @@ export default function LaunchPage() {
   const [showSocials, setShowSocials] = useState(false);
   const [initialBuyAmount, setInitialBuyAmount] = useState('');
   const [showInitialBuy, setShowInitialBuy] = useState(true);
-  const [, setLaunchedTokenAddress] = useState<string | null>(null);
   const [socials, setSocials] = useState<SocialLinks>({
     twitter: '',
     telegram: '',
@@ -62,18 +61,44 @@ export default function LaunchPage() {
       ),
     };
 
-    // Base launch fee + optional initial buy amount
     const launchFee = parseEther('100000');
-    const buyAmount = initialBuyAmount ? parseEther(initialBuyAmount) : BigInt(0);
-    const totalValue = launchFee + buyAmount;
+    const hasInitialBuy = initialBuyAmount && Number(initialBuyAmount) > 0;
 
-    writeContract({
-      address: CONTRACTS.FACTORY,
-      abi: FACTORY_ABI,
-      functionName: 'launchToken',
-      args: [name, symbol, JSON.stringify(metadata), imageUri],
-      value: totalValue,
-    });
+    if (hasInitialBuy) {
+      // V2 Factory: createTokenAndBuy - ONE TRANSACTION for create + buy
+      const buyAmount = parseEther(initialBuyAmount);
+      const totalValue = launchFee + buyAmount;
+
+      writeContract({
+        address: CONTRACTS.FACTORY,
+        abi: FACTORY_ABI,
+        functionName: 'createTokenAndBuy',
+        args: [
+          name,
+          symbol,
+          imageUri || '',
+          JSON.stringify(metadata),
+          '0x0000000000000000000000000000000000000000' as `0x${string}`, // No referrer
+          BigInt(0), // minTokensOut - 0 for initial buy at base price
+        ],
+        value: totalValue,
+      });
+    } else {
+      // V2 Factory: createToken - just create, no initial buy
+      writeContract({
+        address: CONTRACTS.FACTORY,
+        abi: FACTORY_ABI,
+        functionName: 'createToken',
+        args: [
+          name,
+          symbol,
+          imageUri || '',
+          JSON.stringify(metadata),
+          '0x0000000000000000000000000000000000000000' as `0x${string}`, // No referrer
+        ],
+        value: launchFee,
+      });
+    }
   };
 
   // Extract token address from receipt logs and redirect
@@ -81,22 +106,25 @@ export default function LaunchPage() {
     if (isSuccess && receipt) {
       const logs = receipt.logs;
       if (logs && logs.length > 0) {
+        // TokenCreated event has token address as indexed topic[1]
         for (const log of logs) {
-          if (log.topics && log.topics.length >= 3) {
-            const potentialAddress = '0x' + log.topics[2]?.slice(-40);
-            if (potentialAddress && potentialAddress.length === 42) {
-              setLaunchedTokenAddress(potentialAddress);
+          if (log.topics && log.topics.length >= 2) {
+            // Token address is in topics[1] (indexed parameter)
+            const potentialAddress = '0x' + log.topics[1]?.slice(-40);
+            if (potentialAddress && potentialAddress.length === 42 && potentialAddress !== '0x0000000000000000000000000000000000000000') {
               router.push(`/token/${potentialAddress}`);
               return;
             }
           }
         }
-        if (logs[0]?.data && logs[0].data.length >= 66) {
-          const dataAddress = '0x' + logs[0].data.slice(26, 66);
-          if (dataAddress.length === 42) {
-            setLaunchedTokenAddress(dataAddress);
-            router.push(`/token/${dataAddress}`);
-            return;
+        // Fallback: check topics[2] (creator address won't be the token)
+        for (const log of logs) {
+          if (log.topics && log.topics.length >= 3) {
+            const potentialAddress = '0x' + log.topics[2]?.slice(-40);
+            if (potentialAddress && potentialAddress.length === 42) {
+              router.push(`/token/${potentialAddress}`);
+              return;
+            }
           }
         }
       }

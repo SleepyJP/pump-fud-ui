@@ -1,137 +1,87 @@
-// PumpFud Factory ABI - matches deployed contract at 0x7e65383639d8418e826a78a2f5c784cd4bdb92d7
+// PumpFud Factory ABI - V2 at 0xca5709b8d7dc6d0ce0be5f5d9fb6e5e1c9b81550
+// Bonding curve logic lives IN the token (PumpFudToken), not the factory
 export const FACTORY_ABI = [
+  // V2 createToken - order: name, symbol, imageUri, description, referrer
   {
     inputs: [
       { internalType: 'string', name: 'name', type: 'string' },
       { internalType: 'string', name: 'symbol', type: 'string' },
-      { internalType: 'string', name: 'description', type: 'string' },
       { internalType: 'string', name: 'imageUri', type: 'string' },
+      { internalType: 'string', name: 'description', type: 'string' },
+      { internalType: 'address', name: 'referrer', type: 'address' },
     ],
-    name: 'launchToken',
-    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    name: 'createToken',
+    outputs: [{ internalType: 'address', name: 'token', type: 'address' }],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+  // V2 createTokenAndBuy - create + initial buy in ONE transaction
+  {
+    inputs: [
+      { internalType: 'string', name: 'name', type: 'string' },
+      { internalType: 'string', name: 'symbol', type: 'string' },
+      { internalType: 'string', name: 'imageUri', type: 'string' },
+      { internalType: 'string', name: 'description', type: 'string' },
+      { internalType: 'address', name: 'referrer', type: 'address' },
+      { internalType: 'uint256', name: 'minTokensOut', type: 'uint256' },
+    ],
+    name: 'createTokenAndBuy',
+    outputs: [
+      { internalType: 'address', name: 'token', type: 'address' },
+      { internalType: 'uint256', name: 'tokensBought', type: 'uint256' },
+    ],
     stateMutability: 'payable',
     type: 'function',
   },
   {
-    inputs: [
-      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
-      { internalType: 'string', name: 'reason', type: 'string' },
-    ],
-    name: 'delistToken',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { internalType: 'uint256[]', name: 'tokenIds', type: 'uint256[]' },
-      { internalType: 'string', name: 'reason', type: 'string' },
-    ],
-    name: 'batchDelistTokens',
+    inputs: [{ internalType: 'address', name: 'token', type: 'address' }],
+    name: 'deleteToken',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
   {
     inputs: [],
-    name: 'tokenCount',
+    name: 'allTokensLength',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
   },
   {
-    inputs: [{ internalType: 'uint256', name: 'tokenId', type: 'uint256' }],
-    name: 'getToken',
-    outputs: [
-      {
-        components: [
-          { internalType: 'uint256', name: 'id', type: 'uint256' },
-          { internalType: 'address', name: 'tokenAddress', type: 'address' },
-          { internalType: 'string', name: 'name', type: 'string' },
-          { internalType: 'string', name: 'symbol', type: 'string' },
-          { internalType: 'string', name: 'description', type: 'string' },
-          { internalType: 'string', name: 'imageUri', type: 'string' },
-          { internalType: 'address', name: 'creator', type: 'address' },
-          { internalType: 'uint256', name: 'reserveBalance', type: 'uint256' },
-          { internalType: 'uint256', name: 'tokensSold', type: 'uint256' },
-          { internalType: 'uint256', name: 'tradingVolume', type: 'uint256' },
-          { internalType: 'uint256', name: 'createdAt', type: 'uint256' },
-          { internalType: 'uint256', name: 'graduatedAt', type: 'uint256' },
-          { internalType: 'uint8', name: 'status', type: 'uint8' },
-          { internalType: 'uint256', name: 'holderCount', type: 'uint256' },
-          { internalType: 'uint256', name: 'tradeCount', type: 'uint256' },
-        ],
-        internalType: 'struct PumpFud.MemeToken',
-        name: '',
-        type: 'tuple',
-      },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
     inputs: [
       { internalType: 'uint256', name: 'offset', type: 'uint256' },
       { internalType: 'uint256', name: 'limit', type: 'uint256' },
     ],
-    name: 'getAllTokens',
-    outputs: [
-      {
-        components: [
-          { internalType: 'uint256', name: 'id', type: 'uint256' },
-          { internalType: 'address', name: 'tokenAddress', type: 'address' },
-          { internalType: 'string', name: 'name', type: 'string' },
-          { internalType: 'string', name: 'symbol', type: 'string' },
-          { internalType: 'string', name: 'description', type: 'string' },
-          { internalType: 'string', name: 'imageUri', type: 'string' },
-          { internalType: 'address', name: 'creator', type: 'address' },
-          { internalType: 'uint256', name: 'reserveBalance', type: 'uint256' },
-          { internalType: 'uint256', name: 'tokensSold', type: 'uint256' },
-          { internalType: 'uint256', name: 'tradingVolume', type: 'uint256' },
-          { internalType: 'uint256', name: 'createdAt', type: 'uint256' },
-          { internalType: 'uint256', name: 'graduatedAt', type: 'uint256' },
-          { internalType: 'uint8', name: 'status', type: 'uint8' },
-          { internalType: 'uint256', name: 'holderCount', type: 'uint256' },
-          { internalType: 'uint256', name: 'tradeCount', type: 'uint256' },
-        ],
-        internalType: 'struct PumpFud.MemeToken[]',
-        name: '',
-        type: 'tuple[]',
-      },
-    ],
+    name: 'getTokens',
+    outputs: [{ internalType: 'address[]', name: '', type: 'address[]' }],
     stateMutability: 'view',
     type: 'function',
   },
   {
-    inputs: [
-      { internalType: 'uint256', name: 'offset', type: 'uint256' },
-      { internalType: 'uint256', name: 'limit', type: 'uint256' },
-    ],
-    name: 'getLiveTokens',
-    outputs: [
-      {
-        components: [
-          { internalType: 'uint256', name: 'id', type: 'uint256' },
-          { internalType: 'address', name: 'tokenAddress', type: 'address' },
-          { internalType: 'string', name: 'name', type: 'string' },
-          { internalType: 'string', name: 'symbol', type: 'string' },
-          { internalType: 'string', name: 'description', type: 'string' },
-          { internalType: 'string', name: 'imageUri', type: 'string' },
-          { internalType: 'address', name: 'creator', type: 'address' },
-          { internalType: 'uint256', name: 'reserveBalance', type: 'uint256' },
-          { internalType: 'uint256', name: 'tokensSold', type: 'uint256' },
-          { internalType: 'uint256', name: 'tradingVolume', type: 'uint256' },
-          { internalType: 'uint256', name: 'createdAt', type: 'uint256' },
-          { internalType: 'uint256', name: 'graduatedAt', type: 'uint256' },
-          { internalType: 'uint8', name: 'status', type: 'uint8' },
-          { internalType: 'uint256', name: 'holderCount', type: 'uint256' },
-          { internalType: 'uint256', name: 'tradeCount', type: 'uint256' },
-        ],
-        internalType: 'struct PumpFud.MemeToken[]',
-        name: '',
-        type: 'tuple[]',
-      },
-    ],
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    name: 'allTokens',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: '', type: 'address' }],
+    name: 'isToken',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: '', type: 'address' }],
+    name: 'tokenCreator',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'wallet', type: 'address' }],
+    name: 'isFeeExempt',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -143,38 +93,111 @@ export const FACTORY_ABI = [
     type: 'function',
   },
   {
-    inputs: [{ internalType: 'address', name: 'tokenAddress', type: 'address' }],
-    name: 'getTokenByAddress',
+    inputs: [],
+    name: 'graduationThreshold',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'buyFeeBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'sellFeeBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'treasury',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'bondingCurve',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'feeDistributor',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'leaderboard',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'superChat',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getStats',
     outputs: [
-      {
-        components: [
-          { internalType: 'uint256', name: 'id', type: 'uint256' },
-          { internalType: 'address', name: 'tokenAddress', type: 'address' },
-          { internalType: 'string', name: 'name', type: 'string' },
-          { internalType: 'string', name: 'symbol', type: 'string' },
-          { internalType: 'string', name: 'description', type: 'string' },
-          { internalType: 'string', name: 'imageUri', type: 'string' },
-          { internalType: 'address', name: 'creator', type: 'address' },
-          { internalType: 'uint256', name: 'reserveBalance', type: 'uint256' },
-          { internalType: 'uint256', name: 'tokensSold', type: 'uint256' },
-          { internalType: 'uint256', name: 'tradingVolume', type: 'uint256' },
-          { internalType: 'uint256', name: 'createdAt', type: 'uint256' },
-          { internalType: 'uint256', name: 'graduatedAt', type: 'uint256' },
-          { internalType: 'uint8', name: 'status', type: 'uint8' },
-          { internalType: 'uint256', name: 'holderCount', type: 'uint256' },
-          { internalType: 'uint256', name: 'tradeCount', type: 'uint256' },
-        ],
-        internalType: 'struct PumpFud.MemeToken',
-        name: '',
-        type: 'tuple',
-      },
+      { internalType: 'uint256', name: '', type: 'uint256' },
+      { internalType: 'uint256', name: '', type: 'uint256' },
+      { internalType: 'uint256', name: '', type: 'uint256' },
     ],
     stateMutability: 'view',
     type: 'function',
   },
+  // Events
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'token', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'creator', type: 'address' },
+      { indexed: false, internalType: 'string', name: 'name', type: 'string' },
+      { indexed: false, internalType: 'string', name: 'symbol', type: 'string' },
+      { indexed: false, internalType: 'address', name: 'referrer', type: 'address' },
+    ],
+    name: 'TokenCreated',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'token', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'deleter', type: 'address' },
+    ],
+    name: 'TokenDeleted',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'token', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'plsSpent', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'tokensReceived', type: 'uint256' },
+    ],
+    name: 'InitialBuy',
+    type: 'event',
+  },
 ] as const;
 
+// PumpFudToken ABI - V2 token with bonding curve logic INSIDE the token
+// Token handles buy/sell directly, uses BondingCurve contract for math
 export const TOKEN_ABI = [
+  // Buy/Sell - bonding curve functions
   {
     inputs: [{ internalType: 'uint256', name: 'minTokens', type: 'uint256' }],
     name: 'buy',
@@ -192,21 +215,6 @@ export const TOKEN_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
-  // Quote functions for slippage protection
-  {
-    inputs: [{ internalType: 'uint256', name: 'plsAmount', type: 'uint256' }],
-    name: 'calculateBuyReturn',
-    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ internalType: 'uint256', name: 'tokenAmount', type: 'uint256' }],
-    name: 'calculateSellReturn',
-    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
   {
     inputs: [],
     name: 'graduate',
@@ -221,6 +229,7 @@ export const TOKEN_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  // View functions
   {
     inputs: [],
     name: 'name',
@@ -232,6 +241,13 @@ export const TOKEN_ABI = [
     inputs: [],
     name: 'symbol',
     outputs: [{ internalType: 'string', name: '', type: 'string' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'decimals',
+    outputs: [{ internalType: 'uint8', name: '', type: 'uint8' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -251,7 +267,21 @@ export const TOKEN_ABI = [
   },
   {
     inputs: [],
+    name: 'factory',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'creator',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'bondingCurve',
     outputs: [{ internalType: 'address', name: '', type: 'address' }],
     stateMutability: 'view',
     type: 'function',
@@ -286,6 +316,13 @@ export const TOKEN_ABI = [
   },
   {
     inputs: [],
+    name: 'deleted',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'getCurrentPrice',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
@@ -298,6 +335,7 @@ export const TOKEN_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // Chat/Board permissions
   {
     inputs: [{ internalType: 'address', name: 'user', type: 'address' }],
     name: 'canChat',
@@ -312,6 +350,38 @@ export const TOKEN_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // ERC20 standard
+  {
+    inputs: [
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'transfer',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'spender', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'spender', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // Events
   {
     anonymous: false,
     inputs: [
@@ -342,6 +412,82 @@ export const TOKEN_ABI = [
     ],
     name: 'TokenGraduated',
     type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'token', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'deleter', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'refund', type: 'uint256' },
+    ],
+    name: 'TokenDeleted',
+    type: 'event',
+  },
+  // ERC20 events
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'from', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' },
+    ],
+    name: 'Transfer',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'owner', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'spender', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' },
+    ],
+    name: 'Approval',
+    type: 'event',
+  },
+] as const;
+
+// BondingCurve ABI - calculates purchase/sale returns
+export const BONDING_CURVE_ABI = [
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'currentSupply', type: 'uint256' },
+      { internalType: 'uint256', name: 'plsAmount', type: 'uint256' },
+    ],
+    name: 'calculatePurchaseReturn',
+    outputs: [{ internalType: 'uint256', name: 'tokens', type: 'uint256' }],
+    stateMutability: 'pure',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'currentSupply', type: 'uint256' },
+      { internalType: 'uint256', name: 'tokenAmount', type: 'uint256' },
+    ],
+    name: 'calculateSaleReturn',
+    outputs: [{ internalType: 'uint256', name: 'pls', type: 'uint256' }],
+    stateMutability: 'pure',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: 'currentSupply', type: 'uint256' }],
+    name: 'getCurrentPrice',
+    outputs: [{ internalType: 'uint256', name: 'price', type: 'uint256' }],
+    stateMutability: 'pure',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'BASE_PRICE',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'SLOPE',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
   },
 ] as const;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useAccount, useReadContract, useBalance } from 'wagmi';
+import { useAccount, useReadContract, useReadContracts, useBalance } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -28,7 +28,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { FACTORY_ABI } from '@/config/abis';
+import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS } from '@/config/wagmi';
 import { formatAddress, formatPLS } from '@/lib/utils';
 import { useProfileStore } from '@/stores/profileStore';
@@ -69,35 +69,69 @@ export default function ProfilePage() {
     address: address,
   });
 
-  // Get all tokens from factory
-  const { data: tokensData } = useReadContract({
+  // V2: Get token addresses from factory
+  const { data: tokenAddresses } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'getAllTokens',
+    functionName: 'getTokens',
     args: [BigInt(0), BigInt(200)],
     query: { enabled: !!CONTRACTS.FACTORY && isConnected },
   });
 
-  // Process tokens
+  // V2: Build multicall to get token data from each token contract
+  const tokenDataContracts = (tokenAddresses || []).flatMap((addr) => [
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'creator' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'plsReserve' },
+  ]);
+
+  const { data: tokenData } = useReadContracts({
+    contracts: tokenDataContracts as any,
+    query: { enabled: tokenDataContracts.length > 0 },
+  });
+
+  // Process tokens from V2 multicall results
   useEffect(() => {
-    if (!tokensData) {
+    if (!tokenAddresses || tokenAddresses.length === 0 || !tokenData) {
       setAllTokens([]);
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    const tokens: TokenInfo[] = tokensData.map((t) => ({
-      address: t.tokenAddress as `0x${string}`,
-      name: t.name || 'Unknown',
-      symbol: t.symbol || '???',
-      creator: t.creator as `0x${string}`,
-      graduated: t.status === 1,
-      reserveBalance: t.reserveBalance || BigInt(0),
-      createdAt: Number(t.createdAt) * 1000,
-    }));
+    const tokens: TokenInfo[] = [];
+    const fieldsPerToken = 6; // name, symbol, creator, graduated, deleted, plsReserve
+
+    for (let i = 0; i < tokenAddresses.length; i++) {
+      const baseIndex = i * fieldsPerToken;
+      const name = tokenData[baseIndex]?.result as string;
+      const symbol = tokenData[baseIndex + 1]?.result as string;
+      const creator = tokenData[baseIndex + 2]?.result as `0x${string}`;
+      const graduated = tokenData[baseIndex + 3]?.result as boolean || false;
+      const deleted = tokenData[baseIndex + 4]?.result as boolean || false;
+      const plsReserve = tokenData[baseIndex + 5]?.result as bigint || BigInt(0);
+
+      // Skip deleted tokens
+      if (deleted) continue;
+
+      if (name && symbol) {
+        tokens.push({
+          address: tokenAddresses[i] as `0x${string}`,
+          name,
+          symbol,
+          creator: creator || '0x0000000000000000000000000000000000000000',
+          graduated,
+          reserveBalance: plsReserve,
+          createdAt: 0, // V2 doesn't store createdAt on-chain
+        });
+      }
+    }
     setAllTokens(tokens);
     setIsLoading(false);
-  }, [tokensData]);
+  }, [tokenAddresses, tokenData]);
 
   // Filter tokens by creator (tokens this wallet created)
   const createdTokens = useMemo(() => {

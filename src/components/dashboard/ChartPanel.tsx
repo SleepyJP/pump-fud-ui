@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { usePublicClient, useBlockNumber } from 'wagmi';
+import { usePublicClient } from 'wagmi';
 import { parseAbiItem, formatUnits } from 'viem';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { useBlockRefresh } from '@/hooks/useSharedBlockNumber';
+import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 
 interface ChartPanelProps {
   tokenAddress?: `0x${string}`;
@@ -42,27 +43,32 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
   const candleSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const isMountedRef = useRef(true);
+  const initAttempts = useRef(0);
 
   const [timeframe, setTimeframe] = useState<TimeFrame>('5M');
   const [isLoading, setIsLoading] = useState(false);
   const [trades, setTrades] = useState<TradeData[]>([]);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [priceChange, setPriceChange] = useState<number>(0);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [chartError, setChartError] = useState<string | null>(null);
+  const [chartReady, setChartReady] = useState(false);
 
   const publicClient = usePublicClient();
-  const { data: blockNumber } = useBlockNumber({ watch: true });
 
   // Fetch trade events from chain
   const fetchTrades = useCallback(async () => {
-    if (!tokenAddress || !publicClient) return;
+    if (!tokenAddress || !publicClient || !isMountedRef.current) return;
 
     setIsLoading(true);
+
     try {
       const buyEvent = parseAbiItem('event TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address referrer)');
       const sellEvent = parseAbiItem('event TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)');
 
       const currentBlock = await publicClient.getBlockNumber();
-      const fromBlock = currentBlock - BigInt(50000);
+      const fromBlock = currentBlock - BigInt(30000); // ~1 day on PulseChain
 
       const [buyLogs, sellLogs] = await Promise.all([
         publicClient.getLogs({
@@ -79,11 +85,15 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         }),
       ]);
 
+      if (!isMountedRef.current) return;
+
+      // Get block timestamps (limited to prevent RPC overload)
       const blockNumbers = [...new Set([...buyLogs, ...sellLogs].map((l) => l.blockNumber))];
       const blockTimestamps: Record<string, number> = {};
 
+      const blocksToFetch = blockNumbers.slice(0, 50);
       await Promise.all(
-        blockNumbers.slice(0, 100).map(async (bn) => {
+        blocksToFetch.map(async (bn) => {
           try {
             const block = await publicClient.getBlock({ blockNumber: bn });
             blockTimestamps[bn.toString()] = Number(block.timestamp);
@@ -93,9 +103,11 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         })
       );
 
+      if (!isMountedRef.current) return;
+
       const tradeData: TradeData[] = [];
       let runningPlsReserve = BigInt(0);
-      let runningTokenSupply = BigInt(800_000_000) * BigInt(10 ** 18);
+      let runningTokenSupply = BigInt(250_000_000) * BigInt(10 ** 18);
 
       const allLogs = [
         ...buyLogs.map(l => ({ ...l, type: 'buy' as const })),
@@ -141,7 +153,18 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         }
       }
 
+      // If no trades, show initial bonding curve price
+      if (tradeData.length === 0) {
+        const now = Math.floor(Date.now() / 1000);
+        const initialPrice = 0.0000002;
+        tradeData.push({ timestamp: now - 300, price: initialPrice, volume: 0, isBuy: true });
+        tradeData.push({ timestamp: now, price: initialPrice, volume: 0, isBuy: true });
+      }
+
+      if (!isMountedRef.current) return;
+
       setTrades(tradeData);
+      setLastUpdate(new Date());
 
       if (tradeData.length > 0) {
         const latestPrice = tradeData[tradeData.length - 1].price;
@@ -152,69 +175,97 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch trades:', err);
+      console.error('[Chart] Failed to fetch trades:', err);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [tokenAddress, publicClient]);
 
+  // Use shared block refresh - EVERY BLOCK
+  useBlockRefresh('chart', fetchTrades, 1, !!tokenAddress);
+
+  // Initial fetch on mount
+  useEffect(() => {
+    if (tokenAddress) {
+      fetchTrades();
+    }
+  }, [tokenAddress]); // fetchTrades intentionally excluded
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Convert trades to candles
-  const tradesToCandles = useCallback(
-    (tradeData: TradeData[], tf: TimeFrame): CandleData[] => {
-      if (tradeData.length === 0) return [];
+  const tradesToCandles = useCallback((tradeData: TradeData[], tf: TimeFrame): CandleData[] => {
+    if (tradeData.length === 0) return [];
 
-      const interval = TIMEFRAME_SECONDS[tf];
-      const candleMap = new Map<number, CandleData>();
+    const interval = TIMEFRAME_SECONDS[tf];
+    const candleMap = new Map<number, CandleData>();
 
-      for (const trade of tradeData) {
-        const candleTime = Math.floor(trade.timestamp / interval) * interval;
+    for (const trade of tradeData) {
+      const candleTime = Math.floor(trade.timestamp / interval) * interval;
 
-        if (!candleMap.has(candleTime)) {
-          candleMap.set(candleTime, {
-            time: candleTime,
-            open: trade.price,
-            high: trade.price,
-            low: trade.price,
-            close: trade.price,
-            volume: trade.volume,
-          });
-        } else {
-          const candle = candleMap.get(candleTime)!;
-          candle.high = Math.max(candle.high, trade.price);
-          candle.low = Math.min(candle.low, trade.price);
-          candle.close = trade.price;
-          candle.volume += trade.volume;
-        }
+      if (!candleMap.has(candleTime)) {
+        candleMap.set(candleTime, {
+          time: candleTime,
+          open: trade.price,
+          high: trade.price,
+          low: trade.price,
+          close: trade.price,
+          volume: trade.volume,
+        });
+      } else {
+        const candle = candleMap.get(candleTime)!;
+        candle.high = Math.max(candle.high, trade.price);
+        candle.low = Math.min(candle.low, trade.price);
+        candle.close = trade.price;
+        candle.volume += trade.volume;
       }
+    }
 
-      return Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
-    },
-    []
-  );
+    return Array.from(candleMap.values()).sort((a, b) => a.time - b.time);
+  }, []);
 
   // Initialize chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
     let chartInstance: any = null;
+    let mounted = true;
 
     const initChart = async () => {
-      const lwc = await import('lightweight-charts');
-      const { createChart, ColorType, CrosshairMode, LineStyle, CandlestickSeries, HistogramSeries } = lwc;
+      try {
+        const lwc = await import('lightweight-charts');
+        const { createChart, ColorType, CrosshairMode, LineStyle, CandlestickSeries, HistogramSeries } = lwc;
 
-      if (!chartContainerRef.current) return;
+        if (!chartContainerRef.current || !mounted) return;
 
-      // Destroy existing chart
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-      }
+        const container = chartContainerRef.current;
+        const width = container.clientWidth || 400;
+        const height = container.clientHeight || 300;
 
-      const container = chartContainerRef.current;
+        // Don't init if dimensions are invalid
+        if (width <= 0 || height <= 0) {
+          console.warn('[Chart] Invalid container dimensions, retrying...');
+          setTimeout(initChart, 100);
+          return;
+        }
 
-      chartInstance = createChart(container, {
-        width: container.clientWidth,
-        height: container.clientHeight,
+        // Destroy existing chart
+        if (chartRef.current) {
+          chartRef.current.remove();
+          chartRef.current = null;
+        }
+
+        chartInstance = createChart(container, {
+          width,
+          height,
         layout: {
           background: { type: ColorType.Solid, color: 'transparent' },
           textColor: '#9ca3af',
@@ -241,7 +292,6 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         handleScroll: { vertTouchDrag: false },
       });
 
-      // Candlestick series - v5 API uses addSeries with series class
       const candleSeries = chartInstance.addSeries(CandlestickSeries, {
         upColor: '#00ff88',
         downColor: '#ef4444',
@@ -251,7 +301,6 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         wickDownColor: '#ef4444',
       });
 
-      // Volume histogram - v5 API
       const volumeSeries = chartInstance.addSeries(HistogramSeries, {
         color: '#00ff88',
         priceFormat: { type: 'volume' },
@@ -265,21 +314,28 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       candleSeriesRef.current = candleSeries;
       volumeSeriesRef.current = volumeSeries;
 
-      // Resize observer
+      // Safe ResizeObserver with cleanup
       resizeObserverRef.current = new ResizeObserver((entries) => {
-        if (chartInstance && entries[0]) {
+        if (chartInstance && entries[0] && mounted) {
           const { width, height } = entries[0].contentRect;
-          chartInstance.applyOptions({ width, height });
+          if (width > 0 && height > 0) {
+            chartInstance.applyOptions({ width, height });
+          }
         }
       });
       resizeObserverRef.current.observe(container);
+      } catch (err) {
+        console.error('[Chart] Failed to initialize chart:', err);
+      }
     };
 
     initChart();
 
     return () => {
+      mounted = false;
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
       }
       if (chartRef.current) {
         chartRef.current.remove();
@@ -288,68 +344,48 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
     };
   }, []);
 
-  // Update chart data
+  // Update chart data when trades or timeframe change
   useEffect(() => {
     if (!candleSeriesRef.current || !volumeSeriesRef.current || trades.length === 0) return;
 
-    const candles = tradesToCandles(trades, timeframe);
+    try {
+      const candles = tradesToCandles(trades, timeframe);
 
-    if (candles.length > 0) {
-      // Normalize prices to avoid extreme scales
-      const prices = candles.flatMap((c) => [c.open, c.high, c.low, c.close]);
-      const minPrice = Math.min(...prices);
-      const maxPrice = Math.max(...prices);
-      const priceRange = maxPrice - minPrice;
+      // Filter out invalid candles (must have valid time > 0 and valid price values)
+      const validCandles = candles.filter(c =>
+        c.time > 0 &&
+        Number.isFinite(c.open) &&
+        Number.isFinite(c.high) &&
+        Number.isFinite(c.low) &&
+        Number.isFinite(c.close) &&
+        c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0
+      );
 
-      // If price range is too extreme (>1000x), use log scale by normalizing
-      let normalizedCandles = candles;
-      if (priceRange > 0 && maxPrice / Math.max(minPrice, 1e-18) > 1000) {
-        // Apply mild normalization to compress extreme values
-        normalizedCandles = candles.map((c) => ({
-          ...c,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }));
+      if (validCandles.length > 0) {
+        candleSeriesRef.current.setData(
+          validCandles.map((c) => ({
+            time: c.time,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+          }))
+        );
+
+        volumeSeriesRef.current.setData(
+          validCandles.map((c) => ({
+            time: c.time,
+            value: c.volume || 0,
+            color: c.close >= c.open ? 'rgba(0, 255, 136, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+          }))
+        );
+
+        chartRef.current?.timeScale().fitContent();
       }
-
-      candleSeriesRef.current.setData(
-        normalizedCandles.map((c) => ({
-          time: c.time,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }))
-      );
-
-      volumeSeriesRef.current.setData(
-        normalizedCandles.map((c) => ({
-          time: c.time,
-          value: c.volume,
-          color: c.close >= c.open ? 'rgba(0, 255, 136, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-        }))
-      );
-
-      // Fit content to view
-      chartRef.current?.timeScale().fitContent();
+    } catch (err) {
+      console.error('[Chart] Failed to update chart data:', err);
     }
   }, [trades, timeframe, tradesToCandles]);
-
-  // Fetch trades on token change
-  useEffect(() => {
-    if (tokenAddress) {
-      fetchTrades();
-    }
-  }, [tokenAddress, fetchTrades]);
-
-  // Refresh on new blocks (throttled)
-  useEffect(() => {
-    if (tokenAddress && blockNumber && Number(blockNumber) % 10 === 0) {
-      fetchTrades();
-    }
-  }, [blockNumber, tokenAddress, fetchTrades]);
 
   const formatPrice = (price: number) => {
     if (price === 0) return '0';
@@ -360,68 +396,81 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
   };
 
   return (
-    <Card className="h-full flex flex-col" variant="glow">
-      <CardHeader>
-        <div className="flex items-center gap-4">
-          <CardTitle>Price Chart</CardTitle>
-          {currentPrice > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-fud-green font-mono text-sm">{formatPrice(currentPrice)} PLS</span>
-              <span
-                className={`text-xs font-mono px-2 py-0.5 rounded ${
-                  priceChange >= 0 ? 'bg-fud-green/20 text-fud-green' : 'bg-fud-red/20 text-fud-red'
-                }`}
-              >
-                {priceChange >= 0 ? '+' : ''}
-                {priceChange.toFixed(2)}%
-              </span>
-            </div>
+    <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-fud-green/20">
+        <div className="flex items-center gap-3">
+          <span className="text-fud-green text-lg">📊</span>
+          <span className="font-display text-sm text-fud-green">PRICE CHART</span>
+          {isLoading && (
+            <RefreshCw size={12} className="text-fud-green animate-spin" />
           )}
         </div>
-        <div className="flex items-center gap-1">
-          {(['1M', '5M', '15M', '1H', '4H', '1D'] as TimeFrame[]).map((tf) => (
-            <button
-              key={tf}
-              onClick={() => setTimeframe(tf)}
-              className={`px-2 py-1 text-xs font-mono rounded transition-colors ${
-                timeframe === tf
-                  ? 'text-fud-green border border-fud-green/50 bg-fud-green/10'
-                  : 'text-text-muted hover:text-fud-green border border-border-primary hover:border-fud-green/50'
-              }`}
-            >
-              {tf}
-            </button>
-          ))}
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 relative min-h-0">
+        {currentPrice > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-fud-green font-mono text-sm font-bold">
+              {formatPrice(currentPrice)} PLS
+            </span>
+            <span className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded ${
+              priceChange >= 0
+                ? 'bg-fud-green/20 text-fud-green'
+                : 'bg-red-500/20 text-red-400'
+            }`}>
+              {priceChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              {Math.abs(priceChange).toFixed(2)}%
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Timeframe Buttons */}
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-fud-green/10 bg-dark-secondary/30">
+        {(['1M', '5M', '15M', '1H', '4H', '1D'] as TimeFrame[]).map((tf) => (
+          <button
+            key={tf}
+            onClick={() => setTimeframe(tf)}
+            className={`px-3 py-1.5 text-[10px] font-mono rounded transition-all ${
+              timeframe === tf
+                ? 'text-black bg-fud-green font-bold shadow-lg shadow-fud-green/30'
+                : 'text-text-muted hover:text-fud-green hover:bg-fud-green/10'
+            }`}
+          >
+            {tf}
+          </button>
+        ))}
+      </div>
+
+      {/* Chart Area */}
+      <div className="flex-1 relative min-h-0">
         <div ref={chartContainerRef} className="absolute inset-0">
           {!tokenAddress && (
-            <div className="absolute inset-0 flex items-center justify-center bg-dark-secondary/50 rounded">
+            <div className="absolute inset-0 flex items-center justify-center bg-dark-primary/80">
               <div className="text-center">
-                <div className="text-4xl mb-2">📈</div>
+                <div className="text-6xl mb-4 opacity-50">📈</div>
                 <p className="text-text-muted text-sm font-mono">Select a token to view chart</p>
               </div>
             </div>
           )}
           {tokenAddress && isLoading && trades.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-dark-secondary/50 rounded">
-              <div className="text-center">
-                <div className="w-12 h-12 border-2 border-fud-green/30 border-t-fud-green rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-text-muted text-sm font-mono">Loading trades...</p>
-              </div>
-            </div>
-          )}
-          {tokenAddress && !isLoading && trades.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-dark-secondary/50 rounded">
-              <div className="text-center">
-                <div className="text-4xl mb-2">📊</div>
-                <p className="text-text-muted text-sm font-mono">No trades yet</p>
+            <div className="absolute inset-0 flex items-center justify-center bg-dark-primary/80">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 border-3 border-fud-green/30 border-t-fud-green rounded-full animate-spin" />
+                <span className="text-fud-green text-xs font-mono">Loading chart data...</span>
               </div>
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-2 border-t border-fud-green/10 bg-dark-secondary/30 flex items-center justify-between">
+        <span className="text-[10px] font-mono text-text-muted">
+          {lastUpdate ? `Updated ${lastUpdate.toLocaleTimeString()}` : 'Waiting for data...'}
+        </span>
+        <span className="text-[10px] font-mono text-fud-green">
+          {trades.length} trades
+        </span>
+      </div>
+    </div>
   );
 }

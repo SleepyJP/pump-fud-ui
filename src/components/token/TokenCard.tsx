@@ -32,7 +32,7 @@ export function TokenCard({ token }: TokenCardProps) {
               <h3 className="font-display text-fud-green truncate group-hover:animate-glow">
                 {token.name}
               </h3>
-              <p className="text-text-muted text-xs font-mono">${token.symbol}</p>
+              <p className="text-white text-sm font-mono">${token.symbol}</p>
             </div>
             {token.graduated && (
               <span className="px-2 py-0.5 bg-fud-green/20 text-fud-green text-[10px] font-mono rounded">

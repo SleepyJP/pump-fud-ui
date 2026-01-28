@@ -195,13 +195,14 @@ export function plsToUSD(plsAmount: number | bigint, rate: number): string {
 
 export const GAS_LIMITS = {
   TRANSFER: 21000,
-  ERC20_TRANSFER: 65000,
-  SWAP_SIMPLE: 150000,
-  SWAP_COMPLEX: 250000,
-  TOKEN_BUY: 200000,
-  TOKEN_SELL: 180000,
-  TOKEN_CREATE: 3000000,
-  GRADUATION: 500000,
+  ERC20_TRANSFER: 45000,
+  SWAP_SIMPLE: 65000,
+  SWAP_COMPLEX: 120000,
+  TOKEN_BUY: 65000,
+  TOKEN_SELL: 65000,
+  TOKEN_BURN: 45000,
+  TOKEN_CREATE: 2000000,
+  GRADUATION: 500000, // Keep graduation higher to ensure success
 } as const;
 
 /**
@@ -216,6 +217,7 @@ export async function getCommonTxCosts(): Promise<Record<keyof typeof GAS_LIMITS
     SWAP_COMPLEX: estimateTxCost(GAS_LIMITS.SWAP_COMPLEX, data),
     TOKEN_BUY: estimateTxCost(GAS_LIMITS.TOKEN_BUY, data),
     TOKEN_SELL: estimateTxCost(GAS_LIMITS.TOKEN_SELL, data),
+    TOKEN_BURN: estimateTxCost(GAS_LIMITS.TOKEN_BURN, data),
     TOKEN_CREATE: estimateTxCost(GAS_LIMITS.TOKEN_CREATE, data),
     GRADUATION: estimateTxCost(GAS_LIMITS.GRADUATION, data),
   };

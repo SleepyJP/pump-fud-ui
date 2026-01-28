@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { Settings, User } from 'lucide-react';
@@ -8,8 +9,12 @@ import { Button } from '@/components/ui/Button';
 import { useSiteSettings, isAdminWallet } from '@/stores/siteSettingsStore';
 
 export function Header() {
+  const pathname = usePathname();
   const { address } = useAccount();
   const isAdmin = isAdminWallet(address);
+
+  // Only show full nav on inner pages (not landing page)
+  const isLandingPage = pathname === '/';
 
   const {
     headerHeight,
@@ -22,22 +27,13 @@ export function Header() {
     <img
       src={headerLogo}
       alt="PUMP.FUD"
-      className="h-full max-h-[80%] object-contain"
+      className="h-10 object-contain"
     />
   ) : (
-    <div className="flex items-center gap-3 group">
-      <div className="relative">
-        <div className="w-10 h-10 bg-fud-green rounded-lg flex items-center justify-center font-display font-bold text-black text-lg group-hover:animate-neon-pulse">
-          PF
-        </div>
-      </div>
-      <div>
-        <h1 className="font-display text-xl text-fud-green tracking-wider group-hover:animate-glow">
-          PUMP.FUD
-        </h1>
-        <p className="text-[10px] text-text-muted font-mono">Token Launchpad</p>
-      </div>
-    </div>
+    <span className="font-display text-2xl font-bold tracking-tight">
+      <span className="text-fud-green" style={{ textShadow: '0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 30px #00ff88' }}>PUMP</span>
+      <span className="text-white" style={{ textShadow: '0 0 10px #ffffff, 0 0 20px #ffffff, 0 0 30px #ffffff' }}>.FUD</span>
+    </span>
   );
 
   return (
@@ -59,38 +55,40 @@ export function Header() {
       )}
 
       <div className="relative w-full h-full px-4 flex items-center justify-between">
-        {/* Left: Logo */}
+        {/* Left: Logo - always visible */}
         <Link href="/" className="flex items-center h-full flex-shrink-0">
           {logoContent}
         </Link>
 
-        {/* Center: Navigation */}
-        <nav className="hidden md:flex items-center gap-6 ml-8">
-          <Link
-            href="/"
-            className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
-          >
-            Launch
-          </Link>
-          <Link
-            href="/tokens"
-            className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
-          >
-            Tokens
-          </Link>
-          <Link
-            href="/leaderboard"
-            className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
-          >
-            Leaderboard
-          </Link>
-          <Link
-            href="/profile"
-            className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
-          >
-            Profile
-          </Link>
-        </nav>
+        {/* Center: Navigation - only show on inner pages */}
+        {!isLandingPage && (
+          <nav className="hidden md:flex items-center gap-6 ml-8">
+            <Link
+              href="/launch"
+              className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
+            >
+              Launch
+            </Link>
+            <Link
+              href="/tokens"
+              className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
+            >
+              Tokens
+            </Link>
+            <Link
+              href="/leaderboard"
+              className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
+            >
+              Leaderboard
+            </Link>
+            <Link
+              href="/profile"
+              className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
+            >
+              Profile
+            </Link>
+          </nav>
+        )}
 
         {/* Right: Wallet */}
         <div className="flex items-center gap-2 flex-shrink-0">
