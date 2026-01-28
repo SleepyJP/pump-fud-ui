@@ -46,7 +46,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
   const handleSend = () => {
     if (!message.trim() || !tokenAddress || !CONTRACTS.SUPERCHAT) return;
 
-    const tierPrice = CONSTANTS.SUPERCHAT_TIERS[selectedTier];
+    const tierPrice = CONSTANTS.SUPERCHAT_TIERS[selectedTier] ?? 0;
     writeContract({
       address: CONTRACTS.SUPERCHAT as `0x${string}`,
       abi: SUPERCHAT_ABI,

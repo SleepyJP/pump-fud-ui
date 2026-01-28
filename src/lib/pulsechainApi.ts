@@ -172,7 +172,8 @@ export function formatBlockNumber(block: number): string {
 /**
  * Format daily TX count
  */
-export function formatDailyTx(count: number): string {
+export function formatDailyTx(count: number | undefined): string {
+  if (!count && count !== 0) return '0';
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(2)}M`;
   if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
   return count.toString();
