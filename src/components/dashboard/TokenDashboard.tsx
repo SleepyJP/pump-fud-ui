@@ -1,133 +1,208 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { formatUnits } from 'viem';
 
-interface TokenData {
-  name: string;
-  symbol: string;
+import React, { useState, useEffect, useCallback } from 'react';
+import type { Layout } from 'react-grid-layout';
+import { Lock, Unlock, RotateCcw } from 'lucide-react';
+
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+
+import { DashboardWrapper } from './DashboardWrapper';
+import { DashboardPanel } from './DashboardPanel';
+
+import { TokenImageInfo } from './TokenImageInfo';
+import { MessageBoard } from './MessageBoard';
+import { LiveChat } from './LiveChat';
+import { PriceChart } from './PriceChart';
+import { BuySellsTable } from './BuySellsTable';
+import { TokenInfoCard } from './TokenInfoCard';
+import { SwapWidget } from './SwapWidget';
+import { HoldersList } from './HoldersList';
+
+const DEFAULT_LAYOUT: Layout[] = [
+  { i: 'image-info', x: 0, y: 0, w: 5, h: 8, minW: 4, minH: 6, maxW: 8, maxH: 12 },
+  { i: 'message-board', x: 0, y: 8, w: 5, h: 10, minW: 4, minH: 6, maxW: 8, maxH: 16 },
+  { i: 'live-chat', x: 0, y: 18, w: 5, h: 10, minW: 4, minH: 6, maxW: 8, maxH: 14 },
+  { i: 'chart', x: 5, y: 0, w: 14, h: 18, minW: 10, minH: 12, maxW: 18, maxH: 24 },
+  { i: 'transactions', x: 5, y: 18, w: 14, h: 10, minW: 8, minH: 6, maxW: 18, maxH: 14 },
+  { i: 'token-info', x: 19, y: 0, w: 5, h: 8, minW: 4, minH: 6, maxW: 8, maxH: 12 },
+  { i: 'swap', x: 19, y: 8, w: 5, h: 10, minW: 4, minH: 8, maxW: 8, maxH: 14 },
+  { i: 'holders', x: 19, y: 18, w: 5, h: 10, minW: 4, minH: 6, maxW: 8, maxH: 14 },
+];
+
+const STORAGE_KEY_PREFIX = 'pump-fud-dashboard-layout-';
+
+interface TokenDashboardProps {
   address: string;
-  totalSupply: string;
-  marketCap: string;
-  price: string;
-  holders: number;
-  volume24h: string;
+  tokenAddress?: `0x${string}`;
+  tokenName?: string;
+  tokenSymbol?: string;
+  imageUri?: string;
+  description?: string;
+  creator?: `0x${string}`;
+  socials?: { twitter?: string; telegram?: string; website?: string };
+  currentPrice?: bigint;
+  totalSupply?: bigint;
+  plsReserve?: bigint;
+  graduated?: boolean;
 }
 
-export function TokenDashboard({ address }: { address: string }) {
-  const [token, setToken] = useState<TokenData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function TokenDashboard({
+  address,
+  tokenAddress,
+  tokenName,
+  tokenSymbol,
+  imageUri,
+  description,
+  creator,
+  socials,
+  currentPrice,
+  totalSupply,
+  plsReserve,
+  graduated,
+}: TokenDashboardProps) {
+  const addr = (tokenAddress || address) as `0x${string}`;
+  const [isLocked, setIsLocked] = useState(true);
+  const [layouts, setLayouts] = useState<{ [key: string]: Layout[] }>({
+    lg: DEFAULT_LAYOUT,
+    md: DEFAULT_LAYOUT,
+    sm: DEFAULT_LAYOUT,
+    xs: DEFAULT_LAYOUT,
+    xxs: DEFAULT_LAYOUT,
+  });
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Simulated token data - replace with actual API call
-    const fetchToken = async () => {
-      try {
-        setLoading(true);
-        // Mock data for now
-        setToken({
-          name: 'Test Token',
-          symbol: 'TEST',
-          address: address,
-          totalSupply: '250,000,000',
-          marketCap: '$0',
-          price: '$0.00',
-          holders: 0,
-          volume24h: '$0'
-        });
-      } catch (e) {
-        setError('Failed to load token');
-      } finally {
-        setLoading(false);
+    setMounted(true);
+    const storageKey = `${STORAGE_KEY_PREFIX}${addr}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 8) {
+          setLayouts({ lg: parsed, md: parsed, sm: parsed, xs: parsed, xxs: parsed });
+        } else if (typeof parsed === 'object' && parsed.lg) {
+          setLayouts(parsed);
+        }
       }
-    };
-    if (address) fetchToken();
-  }, [address]);
+    } catch (e) {
+      console.error('[TokenDashboard] Failed to load layout:', e);
+    }
+  }, [addr]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-3 border-[#39ff14] border-t-transparent rounded-full animate-spin" />
-          <span className="text-[#39ff14] text-lg animate-pulse">Loading Token...</span>
-        </div>
-      </div>
-    );
-  }
+  const handleLayoutChange = useCallback(
+    (currentLayout: Layout[], allLayouts: { [key: string]: Layout[] }) => {
+      setLayouts(allLayouts);
+      if (!isLocked) {
+        const storageKey = `${STORAGE_KEY_PREFIX}${addr}`;
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(allLayouts));
+        } catch (e) {
+          console.error('[TokenDashboard] Failed to save layout:', e);
+        }
+      }
+    },
+    [addr, isLocked]
+  );
 
-  if (error || !token) {
+  const handleReset = useCallback(() => {
+    if (confirm('Reset layout to default?')) {
+      const defaultLayouts = { lg: DEFAULT_LAYOUT, md: DEFAULT_LAYOUT, sm: DEFAULT_LAYOUT, xs: DEFAULT_LAYOUT, xxs: DEFAULT_LAYOUT };
+      setLayouts(defaultLayouts);
+      localStorage.removeItem(`${STORAGE_KEY_PREFIX}${addr}`);
+    }
+  }, [addr]);
+
+  if (!mounted) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl text-red-500 mb-4">Error</h1>
-          <p className="text-gray-400">{error || 'Token not found'}</p>
-          <a href="/tokens" className="text-[#39ff14] hover:underline mt-4 inline-block">← Back to Tokens</a>
+      <div className="w-full min-h-[800px]">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-[#39ff14]/30 border-t-[#39ff14] rounded-full animate-spin" />
+            <div className="animate-pulse text-[#39ff14] font-mono text-sm">Initializing dashboard...</div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8">
-      {/* Header */}
-      <div className="mb-8 border-b border-gray-800 pb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-[#39ff14] to-emerald-600 rounded-full flex items-center justify-center text-2xl font-bold">
-            {token.symbol.slice(0, 2)}
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-[#39ff14]">{token.symbol}</h1>
-            <p className="text-gray-400">{token.name}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <span className="font-mono">{address.slice(0, 10)}...{address.slice(-8)}</span>
-          <button onClick={() => navigator.clipboard.writeText(address)} className="hover:text-[#39ff14] transition-colors">
-            📋
+    <div className="relative w-full">
+      <div className="flex items-center justify-end gap-2 mb-3 px-4">
+        <button
+          onClick={() => setIsLocked(!isLocked)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm font-bold transition-all border ${
+            isLocked
+              ? 'bg-black/60 border-gray-700 text-gray-400 hover:border-[#39ff14]/50 hover:text-[#39ff14]'
+              : 'bg-[#39ff14] border-[#39ff14] text-black'
+          }`}
+        >
+          {isLocked ? <Lock size={14} /> : <Unlock size={14} />}
+          {isLocked ? 'LOCKED' : 'UNLOCKED'}
+        </button>
+        {!isLocked && (
+          <button onClick={handleReset} className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm bg-black/60 border border-orange-500/50 text-orange-400 hover:bg-orange-500/20 transition-all">
+            <RotateCcw size={14} /> Reset
           </button>
-        </div>
+        )}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Price', value: token.price },
-          { label: 'Market Cap', value: token.marketCap },
-          { label: 'Total Supply', value: token.totalSupply },
-          { label: '24h Volume', value: token.volume24h }
-        ].map((stat) => (
-          <div key={stat.label} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4">
-            <p className="text-gray-400 text-sm">{stat.label}</p>
-            <p className="text-xl font-bold text-white">{stat.value}</p>
-          </div>
-        ))}
-      </div>
+      {!isLocked && (
+        <div className="bg-[#39ff14]/10 border border-[#39ff14]/30 rounded-lg px-4 py-2 mb-3 mx-4 text-center">
+          <span className="text-[#39ff14] text-sm font-mono">✏️ Layout Editing Mode — Drag panels by header, resize from edges</span>
+        </div>
+      )}
 
-      {/* Trade Panel */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-[#39ff14] mb-4">Buy {token.symbol}</h2>
-          <input type="number" placeholder="Amount in PLS" className="w-full bg-black border border-gray-700 rounded-lg px-4 py-3 mb-4 focus:border-[#39ff14] outline-none" />
-          <button className="w-full bg-[#39ff14] text-black font-bold py-3 rounded-lg hover:bg-[#32d912] transition-colors">
-            BUY
-          </button>
+      <DashboardWrapper layouts={layouts} onLayoutChange={handleLayoutChange} isDraggable={!isLocked} isResizable={!isLocked}>
+        <div key="image-info">
+          <DashboardPanel title="TOKEN" isEditing={!isLocked}>
+            <TokenImageInfo tokenAddress={addr} name={tokenName} symbol={tokenSymbol} image={imageUri} description={description} creator={creator} socials={socials} />
+          </DashboardPanel>
         </div>
-        <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-red-500 mb-4">Sell {token.symbol}</h2>
-          <input type="number" placeholder="Amount of tokens" className="w-full bg-black border border-gray-700 rounded-lg px-4 py-3 mb-4 focus:border-red-500 outline-none" />
-          <button className="w-full bg-red-500 text-white font-bold py-3 rounded-lg hover:bg-red-600 transition-colors">
-            SELL
-          </button>
+        <div key="message-board">
+          <DashboardPanel title="MESSAGE BOARD" isEditing={!isLocked}>
+            <MessageBoard tokenAddress={addr} />
+          </DashboardPanel>
         </div>
-      </div>
+        <div key="live-chat">
+          <DashboardPanel title="LIVE CHAT" isEditing={!isLocked}>
+            <LiveChat tokenAddress={addr} />
+          </DashboardPanel>
+        </div>
+        <div key="chart">
+          <DashboardPanel title="CHART" isEditing={!isLocked}>
+            <PriceChart tokenAddress={addr} />
+          </DashboardPanel>
+        </div>
+        <div key="transactions">
+          <DashboardPanel title="BUYS & SELLS" isEditing={!isLocked}>
+            <BuySellsTable tokenAddress={addr} />
+          </DashboardPanel>
+        </div>
+        <div key="token-info">
+          <DashboardPanel title="INFO" isEditing={!isLocked}>
+            <TokenInfoCard tokenAddress={addr} currentPrice={currentPrice} totalSupply={totalSupply} plsReserve={plsReserve} graduated={graduated} />
+          </DashboardPanel>
+        </div>
+        <div key="swap">
+          <DashboardPanel title="SWAP" isEditing={!isLocked}>
+            <SwapWidget tokenAddress={addr} tokenSymbol={tokenSymbol} currentPrice={currentPrice} />
+          </DashboardPanel>
+        </div>
+        <div key="holders">
+          <DashboardPanel title="HOLDERS" isEditing={!isLocked}>
+            <HoldersList tokenAddress={addr} tokenSymbol={tokenSymbol} totalSupply={totalSupply} creator={creator} />
+          </DashboardPanel>
+        </div>
+      </DashboardWrapper>
 
-      {/* Chart Placeholder */}
-      <div className="mt-8 bg-gray-900/50 border border-gray-800 rounded-lg p-6 h-96 flex items-center justify-center">
-        <div className="text-center text-gray-500">
-          <p className="text-2xl mb-2">📈</p>
-          <p>Price Chart Coming Soon</p>
-        </div>
-      </div>
+      <style jsx global>{`
+        .react-grid-item.react-grid-placeholder { background: rgba(57, 255, 20, 0.15) !important; border: 2px dashed #39ff14 !important; border-radius: 8px; }
+        .react-resizable-handle { background: transparent !important; }
+        .react-resizable-handle::after { border-color: rgba(57, 255, 20, 0.5) !important; }
+        .react-grid-item.resizing { z-index: 100; opacity: 0.9; }
+        .react-grid-item.react-draggable-dragging { z-index: 100; box-shadow: 0 10px 40px rgba(57, 255, 20, 0.3); }
+      `}</style>
     </div>
   );
 }
