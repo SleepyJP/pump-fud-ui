@@ -4,7 +4,8 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
-export function formatPLS(value: bigint, decimals = 2): string {
+export function formatPLS(value: bigint | undefined | null, decimals = 2): string {
+  if (!value) return '0';
   const formatted = Number(value) / 1e18;
   if (formatted >= 1_000_000) {
     return `${(formatted / 1_000_000).toFixed(decimals)}M`;
@@ -15,7 +16,8 @@ export function formatPLS(value: bigint, decimals = 2): string {
   return formatted.toFixed(decimals);
 }
 
-export function formatTokens(value: bigint, decimals = 2): string {
+export function formatTokens(value: bigint | undefined | null, decimals = 2): string {
+  if (!value) return '0';
   const formatted = Number(value) / 1e18;
   if (formatted >= 1_000_000_000) {
     return `${(formatted / 1_000_000_000).toFixed(decimals)}B`;
@@ -29,7 +31,8 @@ export function formatTokens(value: bigint, decimals = 2): string {
   return formatted.toFixed(decimals);
 }
 
-export function formatAddress(address: string): string {
+export function formatAddress(address: string | undefined | null): string {
+  if (!address) return '0x...';
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
