@@ -6,7 +6,7 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt, useBalance 
 import { parseEther, formatEther } from 'viem';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { FACTORY_ABI } from '@/config/abis';
-import { CONTRACTS } from '@/config/wagmi';
+import { CONTRACTS, CONSTANTS } from '@/config/wagmi';
 
 interface SocialLinks {
   twitter: string;
@@ -47,11 +47,30 @@ export default function LaunchPage() {
   // Get user PLS balance
   const { data: plsBalance } = useBalance({ address });
 
-  const { writeContract, data: hash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, data: hash, isPending, error: writeError, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess, data: receipt, error: txError } = useWaitForTransactionReceipt({ hash });
+  const [launchError, setLaunchError] = useState<string | null>(null);
+
+  // Use HARDCODED launch fee from CONSTANTS (contract has no getter!)
+  const launchFee = CONSTANTS.LAUNCH_FEE;
+  const launchFeeDisplay = CONSTANTS.LAUNCH_FEE_DISPLAY;
 
   const handleLaunch = () => {
     if (!name || !symbol || !CONTRACTS.FACTORY) return;
+
+    // Reset any previous errors
+    setLaunchError(null);
+    reset();
+
+    // Validate balance before attempting
+    const hasInitialBuy = initialBuyAmount && Number(initialBuyAmount) > 0;
+    const buyAmount = hasInitialBuy ? parseEther(initialBuyAmount) : BigInt(0);
+    const totalValue = launchFee + buyAmount;
+
+    if (plsBalance && plsBalance.value < totalValue) {
+      setLaunchError(`Insufficient balance. Need ${formatEther(totalValue)} PLS, have ${formatEther(plsBalance.value)} PLS`);
+      return;
+    }
 
     // Encode socials into description JSON for on-chain storage
     const metadata = {
@@ -61,45 +80,80 @@ export default function LaunchPage() {
       ),
     };
 
-    const launchFee = parseEther('100000');
-    const hasInitialBuy = initialBuyAmount && Number(initialBuyAmount) > 0;
+    // Log for debugging
+    console.log('🚀 Launch attempt:', {
+      factory: CONTRACTS.FACTORY,
+      name,
+      symbol,
+      imageUri: imageUri || '',
+      metadata: JSON.stringify(metadata),
+      launchFee: launchFee.toString(),
+      hasInitialBuy,
+      buyAmount: buyAmount.toString(),
+      totalValue: totalValue.toString(),
+    });
 
-    if (hasInitialBuy) {
-      // V2 Factory: createTokenAndBuy - ONE TRANSACTION for create + buy
-      const buyAmount = parseEther(initialBuyAmount);
-      const totalValue = launchFee + buyAmount;
+    try {
+      if (hasInitialBuy) {
+        // V1 Factory: createTokenAndBuy - create + initial buy
+        // Args: name, symbol, description, imageUrl, buyAmount
+        console.log('📝 Calling createTokenAndBuy with value:', totalValue.toString());
 
-      writeContract({
-        address: CONTRACTS.FACTORY,
-        abi: FACTORY_ABI,
-        functionName: 'createTokenAndBuy',
-        args: [
-          name,
-          symbol,
-          imageUri || '',
-          JSON.stringify(metadata),
-          '0x0000000000000000000000000000000000000000' as `0x${string}`, // No referrer
-          BigInt(0), // minTokensOut - 0 for initial buy at base price
-        ],
-        value: totalValue,
-      });
-    } else {
-      // V2 Factory: createToken - just create, no initial buy
-      writeContract({
-        address: CONTRACTS.FACTORY,
-        abi: FACTORY_ABI,
-        functionName: 'createToken',
-        args: [
-          name,
-          symbol,
-          imageUri || '',
-          JSON.stringify(metadata),
-          '0x0000000000000000000000000000000000000000' as `0x${string}`, // No referrer
-        ],
-        value: launchFee,
-      });
+        writeContract({
+          address: CONTRACTS.FACTORY,
+          abi: FACTORY_ABI,
+          functionName: 'createTokenAndBuy',
+          args: [
+            name,
+            symbol,
+            JSON.stringify(metadata),
+            imageUri || '',
+            buyAmount,
+          ],
+          value: totalValue,
+        });
+      } else {
+        // V1 Factory: createToken - just create, no initial buy
+        // Args: name, symbol, description, imageUrl
+        console.log('📝 Calling createToken with value:', launchFee.toString());
+
+        writeContract({
+          address: CONTRACTS.FACTORY,
+          abi: FACTORY_ABI,
+          functionName: 'createToken',
+          args: [
+            name,
+            symbol,
+            JSON.stringify(metadata),
+            imageUri || '',
+          ],
+          value: launchFee,
+        });
+      }
+    } catch (err) {
+      console.error('❌ Launch error:', err);
+      setLaunchError(err instanceof Error ? err.message : 'Unknown error occurred');
     }
   };
+
+  // Capture write errors
+  useEffect(() => {
+    if (writeError) {
+      console.error('❌ Write contract error:', writeError);
+      const errorMessage = writeError.message || 'Transaction failed';
+      // Extract the useful part of the error message
+      const match = errorMessage.match(/reason: (.*?)(?:\n|$)/);
+      setLaunchError(match ? match[1] : errorMessage.slice(0, 200));
+    }
+  }, [writeError]);
+
+  // Capture transaction errors
+  useEffect(() => {
+    if (txError) {
+      console.error('❌ Transaction error:', txError);
+      setLaunchError(txError.message.slice(0, 200));
+    }
+  }, [txError]);
 
   // Extract token address from receipt logs and redirect
   useEffect(() => {
@@ -110,20 +164,26 @@ export default function LaunchPage() {
         for (const log of logs) {
           if (log.topics && log.topics.length >= 2) {
             // Token address is in topics[1] (indexed parameter)
-            const potentialAddress = '0x' + log.topics[1]?.slice(-40);
-            if (potentialAddress && potentialAddress.length === 42 && potentialAddress !== '0x0000000000000000000000000000000000000000') {
-              router.push(`/token/${potentialAddress}`);
-              return;
+            const topic = log.topics[1];
+            if (topic && topic.length >= 42) {
+              const potentialAddress = '0x' + topic.slice(-40);
+              if (potentialAddress.length === 42 && potentialAddress !== '0x0000000000000000000000000000000000000000') {
+                router.push(`/token/${potentialAddress}`);
+                return;
+              }
             }
           }
         }
         // Fallback: check topics[2] (creator address won't be the token)
         for (const log of logs) {
           if (log.topics && log.topics.length >= 3) {
-            const potentialAddress = '0x' + log.topics[2]?.slice(-40);
-            if (potentialAddress && potentialAddress.length === 42) {
-              router.push(`/token/${potentialAddress}`);
-              return;
+            const topic = log.topics[2];
+            if (topic && topic.length >= 42) {
+              const potentialAddress = '0x' + topic.slice(-40);
+              if (potentialAddress.length === 42) {
+                router.push(`/token/${potentialAddress}`);
+                return;
+              }
             }
           }
         }
@@ -528,7 +588,7 @@ export default function LaunchPage() {
                     marginBottom: '16px',
                     lineHeight: 1.5,
                   }}>
-                    Be the first to buy your own token! This amount is added to the 100,000 PLS launch fee.
+                    Be the first to buy your own token! This amount is added to the {launchFeeDisplay} PLS launch fee.
                     You&apos;ll receive tokens at the initial bonding curve price.
                   </p>
 
@@ -635,7 +695,7 @@ export default function LaunchPage() {
                   </p>
                   <p style={{ color: '#888', fontSize: '12px' }}>
                     {initialBuyAmount
-                      ? `100K launch fee + ${Number(initialBuyAmount).toLocaleString()} PLS buy`
+                      ? `${launchFeeDisplay} launch fee + ${Number(initialBuyAmount).toLocaleString()} PLS buy`
                       : 'Required to create your token'
                     }
                   </p>
@@ -649,7 +709,7 @@ export default function LaunchPage() {
                 }}>
                   {initialBuyAmount
                     ? `${(100000 + Number(initialBuyAmount)).toLocaleString()} PLS`
-                    : '100,000 PLS'
+                    : `${launchFeeDisplay} PLS`
                   }
                 </div>
               </div>
@@ -664,13 +724,54 @@ export default function LaunchPage() {
                   fontSize: '11px',
                   color: '#888',
                 }}>
-                  <span>Launch Fee: 100,000 PLS</span>
+                  <span>Launch Fee: {launchFeeDisplay} PLS</span>
                   <span style={{ color: '#22c55e' }}>
                     + Initial Buy: {Number(initialBuyAmount).toLocaleString()} PLS
                   </span>
                 </div>
               )}
             </div>
+
+            {/* Error Display */}
+            {launchError && (
+              <div style={{
+                background: 'rgba(220,38,38,0.15)',
+                border: '1px solid rgba(220,38,38,0.5)',
+                borderRadius: '10px',
+                padding: '16px',
+                marginBottom: '16px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  <span style={{ fontSize: '20px' }}>❌</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{
+                      fontFamily: 'Cinzel, serif',
+                      color: '#ef4444',
+                      fontSize: '12px',
+                      letterSpacing: '0.1em',
+                      marginBottom: '6px',
+                    }}>
+                      LAUNCH FAILED
+                    </p>
+                    <p style={{ color: '#fca5a5', fontSize: '12px', wordBreak: 'break-word' }}>
+                      {launchError}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { setLaunchError(null); reset(); }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#888',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Submit Button */}
             {isConnected ? (
@@ -698,8 +799,10 @@ export default function LaunchPage() {
                   transition: 'all 0.3s ease',
                 }}
               >
-                {isPending || isConfirming ? (
-                  '⏳ Creating Token...'
+                {isPending ? (
+                  '⏳ Preparing Transaction...'
+                ) : isConfirming ? (
+                  '⏳ Confirming On-Chain...'
                 ) : (
                   '🚀 Launch Token'
                 )}
