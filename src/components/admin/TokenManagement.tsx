@@ -27,33 +27,16 @@ export function TokenManagement() {
   const { hiddenTokens, hideToken, unhideToken } = useSiteSettings();
   const factoryAddress = CONTRACTS.FACTORY;
 
-  // V1: Get token count from factory
-  const { data: tokenCount, refetch: refetchTokens, isLoading: isLoadingTokens } = useReadContract({
+  // V2: Get token addresses from factory
+  const { data: tokenAddresses, refetch: refetchTokens, isLoading: isLoadingTokens } = useReadContract({
     address: factoryAddress,
     abi: FACTORY_ABI,
-    functionName: 'tokenCount',
+    functionName: 'getTokens',
+    args: [BigInt(0), BigInt(100)],
     query: { enabled: !!factoryAddress },
   });
 
-  // V1: Build multicall to fetch each token address by index
-  const tokenIndexContracts = Array.from({ length: Math.min(Number(tokenCount || 0), 100) }, (_, i) => ({
-    address: factoryAddress,
-    abi: FACTORY_ABI,
-    functionName: 'tokens',
-    args: [BigInt(i)],
-  }));
-
-  const { data: tokenAddressResults } = useReadContracts({
-    contracts: tokenIndexContracts as any,
-    query: { enabled: Number(tokenCount || 0) > 0 },
-  });
-
-  // Extract addresses from multicall results
-  const tokenAddresses = (tokenAddressResults || [])
-    .map((r) => r.result as `0x${string}`)
-    .filter(Boolean);
-
-  // V1: Build multicall to get token data
+  // V2: Build multicall to get token data
   const tokenDataContracts = (tokenAddresses || []).flatMap((addr) => [
     { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
     { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },

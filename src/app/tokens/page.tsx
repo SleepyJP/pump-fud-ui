@@ -58,83 +58,43 @@ function TokensPageContent() {
 
   const { tokenCardPattern, tokenCardPatternOpacity, hiddenTokens } = useSiteSettings();
 
-  // V1: Fetch token count from factory
-  const { data: tokenCount, refetch, isRefetching } = useReadContract({
+  // V2: Fetch token addresses from factory
+  const { data: tokenAddressesRaw, refetch, isRefetching } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'tokenCount',
+    functionName: 'getTokens',
+    args: [BigInt(0), BigInt(100)],
     query: { enabled: !!CONTRACTS.FACTORY },
   });
 
-  // V1: Build multicall to fetch each token address by index
-  const tokenIndexContracts = Array.from({ length: Number(tokenCount || 0) }, (_, i) => ({
-    address: CONTRACTS.FACTORY,
-    abi: FACTORY_ABI,
-    functionName: 'tokens',
-    args: [BigInt(i)],
-  }));
-
-  const { data: tokenAddressResults } = useReadContracts({
-    contracts: tokenIndexContracts as any,
-    query: { enabled: Number(tokenCount || 0) > 0 },
-  });
-
-  // Memoize extracted addresses to prevent unnecessary re-renders
-  const tokenAddresses = useMemo(() => {
-    if (!tokenAddressResults) return [];
-    return tokenAddressResults
-      .map((r) => r.result as `0x${string}`)
-      .filter(Boolean);
-  }, [tokenAddressResults]);
-
-  // V1: Build multicall to get token data from each token contract
-  const tokenDataContracts = useMemo(() => {
-    return tokenAddresses.flatMap((addr) => [
-      { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
-      { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
-      { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
-      { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
-    ]);
-  }, [tokenAddresses]);
+  // V2: Build multicall to get token data from each token contract
+  const tokenDataContracts = (tokenAddressesRaw || []).flatMap((addr) => [
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
+  ]);
 
   const { data: tokenData } = useReadContracts({
     contracts: tokenDataContracts as any,
     query: { enabled: tokenDataContracts.length > 0 },
   });
 
-  // Load token details from V1 multicall
+  // Load token details from V2 multicall
   useEffect(() => {
-    // Wait for tokenCount to load
-    if (tokenCount === undefined) {
-      setIsLoading(true);
-      return;
-    }
-
-    // If no tokens exist
-    if (Number(tokenCount) === 0) {
+    if (!tokenAddressesRaw || tokenAddressesRaw.length === 0 || !tokenData) {
       setIsLoading(false);
       setTokens([]);
       return;
     }
 
-    // Wait for token addresses to load
-    if (tokenAddresses.length === 0) {
-      setIsLoading(true);
-      return;
-    }
-
-    // Wait for token data to load
-    if (!tokenData || tokenData.length === 0) {
-      setIsLoading(true);
-      return;
-    }
-
+    setIsLoading(true);
     const tokenInfos: TokenInfo[] = [];
     const fieldsPerToken = 4; // name, symbol, graduated, deleted
 
-    for (let i = 0; i < tokenAddresses.length; i++) {
+    for (let i = 0; i < tokenAddressesRaw.length; i++) {
       const baseIndex = i * fieldsPerToken;
-      const addr = tokenAddresses[i] as `0x${string}`;
+      const addr = tokenAddressesRaw[i] as `0x${string}`;
       const name = tokenData[baseIndex]?.result as string;
       const symbol = tokenData[baseIndex + 1]?.result as string;
       const graduated = tokenData[baseIndex + 2]?.result as boolean || false;
@@ -150,15 +110,15 @@ function TokensPageContent() {
           name,
           symbol,
           graduated,
-          createdAt: 0,
-          priceChange: 0,
+          createdAt: 0, // V2 doesn't store createdAt
+          priceChange: 0, // Would need price data
         });
       }
     }
 
     setTokens(tokenInfos);
     setIsLoading(false);
-  }, [tokenCount, tokenAddresses, tokenData, hiddenTokens]);
+  }, [tokenAddressesRaw, tokenData, hiddenTokens]);
 
   // Filter and search tokens
   const filteredTokens = useMemo(() => {

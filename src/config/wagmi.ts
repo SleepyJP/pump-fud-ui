@@ -25,14 +25,15 @@ export const config = getDefaultConfig({
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PRODUCTION CONTRACT ADDRESSES - PulseChain 369
-// V1 Factory with 50M PLS graduation - HAS 9 TOKENS
+// V2 Factory with working getTokens(), allTokensLength(), allTokens(i)
+// Deployed: 2026-01-27
 // ═══════════════════════════════════════════════════════════════════════════
 export const CONTRACTS = {
-  FACTORY: '0x7e65383639d8418E826a78a2f5C784cd4Bdb92D7' as const,
-  BONDING_CURVE: '0x8d487ab0c5a622d7bafc643bec09506ae3c5710b' as const,
-  FEE_DISTRIBUTOR: '0x212fd8BD0Ca548aDc661749cAA93f6a9403eD31F' as const,
-  LEADERBOARD: '0xf851d6ffdb197332a5e6e7a8f6905d796cfbedbf' as const,
-  SUPERCHAT: '0xc47aa11816abbdd93203de5db5d1215b820f1e6a' as const,
+  FACTORY: '0xeEdc047484bF8c3bC0B76b309f2ED7aeB25098Dd' as const,
+  BONDING_CURVE: '0x8D8b56Bc9e64db0759dD6adb4734244997464E9d' as const,
+  FEE_DISTRIBUTOR: '0x213Fa1E686a23f7ba34DA5005147060C80e1e3Ce' as const,
+  LEADERBOARD: '0x431f285C6293a09EAf43D712da3fCc5e323fE40F' as const,
+  SUPERCHAT: '0xbc6a2B08FA320606d779f2b00F942a2Ea306c930' as const,
   REFERRALS: '0xcaDa87A9d1025563C976909c13013C9DDc471A17' as const,
   TREASURY: '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B' as const,
   PULSEX_ROUTER: '0x165C3410fC91EF562C50559f7d2289fEbed552d9' as const,
@@ -40,17 +41,16 @@ export const CONTRACTS = {
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HARDCODED CONSTANTS - V1 Contract has NO getters for these!
-// DO NOT call launchFee() or graduationThreshold() - they REVERT
+// CONSTANTS - V2 contract HAS working launchFee() getter, cached here for speed
 // ═══════════════════════════════════════════════════════════════════════════
 export const CONSTANTS = {
   // Launch fee: 100,000 PLS
   LAUNCH_FEE: BigInt('100000000000000000000000'),
   LAUNCH_FEE_DISPLAY: '100,000',
 
-  // Graduation threshold: 50,000,000 PLS
-  GRADUATION_THRESHOLD: BigInt('50000000000000000000000000'),
-  GRADUATION_THRESHOLD_DISPLAY: '50,000,000',
+  // Graduation threshold: 69,000 PLS (V2 is lower than V1's 50M)
+  GRADUATION_THRESHOLD: BigInt('69000000000000000000000'),
+  GRADUATION_THRESHOLD_DISPLAY: '69,000',
 
   // Fee percentages
   BUY_FEE_BPS: 100,

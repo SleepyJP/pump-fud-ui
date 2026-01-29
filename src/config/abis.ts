@@ -1,10 +1,46 @@
-// ═══════════════════════════════════════════════════════════════════════════
-// PUMP.FUD V1 FACTORY ABI - 0x7e65383639d8418E826a78a2f5C784cd4Bdb92D7
-// CRITICAL: Uses tokenCount() and tokens() NOT allTokensLength()/allTokens()
-// CRITICAL: NO getters for launchFee/graduationThreshold - use CONSTANTS
-// ═══════════════════════════════════════════════════════════════════════════
+// PumpFud Factory ABI - V2 at 0xeEdc047484bF8c3bC0B76b309f2ED7aeB25098Dd
+// Deployed: 2026-01-27 on PulseChain (369)
+// Bonding curve logic lives IN the token (PumpFudToken), not the factory
 export const FACTORY_ABI = [
-  // Token count - CORRECT function name
+  // V2 createToken - order: name, symbol, imageUri, description, referrer
+  {
+    inputs: [
+      { internalType: 'string', name: 'name', type: 'string' },
+      { internalType: 'string', name: 'symbol', type: 'string' },
+      { internalType: 'string', name: 'imageUri', type: 'string' },
+      { internalType: 'string', name: 'description', type: 'string' },
+      { internalType: 'address', name: 'referrer', type: 'address' },
+    ],
+    name: 'createToken',
+    outputs: [{ internalType: 'address', name: 'token', type: 'address' }],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+  // V2 createTokenAndBuy - create + initial buy in ONE transaction
+  {
+    inputs: [
+      { internalType: 'string', name: 'name', type: 'string' },
+      { internalType: 'string', name: 'symbol', type: 'string' },
+      { internalType: 'string', name: 'imageUri', type: 'string' },
+      { internalType: 'string', name: 'description', type: 'string' },
+      { internalType: 'address', name: 'referrer', type: 'address' },
+      { internalType: 'uint256', name: 'minTokensOut', type: 'uint256' },
+    ],
+    name: 'createTokenAndBuy',
+    outputs: [
+      { internalType: 'address', name: 'token', type: 'address' },
+      { internalType: 'uint256', name: 'tokensBought', type: 'uint256' },
+    ],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'token', type: 'address' }],
+    name: 'deleteToken',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
   {
     inputs: [],
     name: 'tokenCount',
@@ -12,71 +48,196 @@ export const FACTORY_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
-  // Get token by index - CORRECT function name
   {
-    inputs: [{ internalType: 'uint256', name: 'index', type: 'uint256' }],
+    inputs: [
+      { internalType: 'uint256', name: 'offset', type: 'uint256' },
+      { internalType: 'uint256', name: 'limit', type: 'uint256' },
+    ],
+    name: 'getTokens',
+    outputs: [{ internalType: 'address[]', name: '', type: 'address[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     name: 'tokens',
     outputs: [{ internalType: 'address', name: '', type: 'address' }],
     stateMutability: 'view',
     type: 'function',
   },
-  // Get token info by address
   {
-    inputs: [{ internalType: 'address', name: 'token', type: 'address' }],
-    name: 'getToken',
-    outputs: [
-      { internalType: 'address', name: 'creator', type: 'address' },
-      { internalType: 'string', name: 'name', type: 'string' },
-      { internalType: 'string', name: 'symbol', type: 'string' },
-      { internalType: 'string', name: 'description', type: 'string' },
-      { internalType: 'string', name: 'imageUrl', type: 'string' },
-      { internalType: 'uint256', name: 'totalRaised', type: 'uint256' },
-      { internalType: 'bool', name: 'graduated', type: 'bool' },
-    ],
+    inputs: [{ internalType: 'address', name: '', type: 'address' }],
+    name: 'isToken',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
     stateMutability: 'view',
     type: 'function',
   },
-  // Owner
   {
-    inputs: [],
-    name: 'owner',
+    inputs: [{ internalType: 'address', name: '', type: 'address' }],
+    name: 'tokenCreator',
     outputs: [{ internalType: 'address', name: '', type: 'address' }],
     stateMutability: 'view',
     type: 'function',
   },
-  // Create token - V1 format (no referrer)
   {
-    inputs: [
-      { internalType: 'string', name: 'name', type: 'string' },
-      { internalType: 'string', name: 'symbol', type: 'string' },
-      { internalType: 'string', name: 'description', type: 'string' },
-      { internalType: 'string', name: 'imageUrl', type: 'string' },
-    ],
-    name: 'createToken',
-    outputs: [{ internalType: 'address', name: 'token', type: 'address' }],
-    stateMutability: 'payable',
+    inputs: [{ internalType: 'address', name: 'wallet', type: 'address' }],
+    name: 'isFeeExempt',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
     type: 'function',
   },
-  // Create token and buy - V1 format
   {
-    inputs: [
-      { internalType: 'string', name: 'name', type: 'string' },
-      { internalType: 'string', name: 'symbol', type: 'string' },
-      { internalType: 'string', name: 'description', type: 'string' },
-      { internalType: 'string', name: 'imageUrl', type: 'string' },
-      { internalType: 'uint256', name: 'buyAmount', type: 'uint256' },
-    ],
-    name: 'createTokenAndBuy',
-    outputs: [{ internalType: 'address', name: 'token', type: 'address' }],
-    stateMutability: 'payable',
+    inputs: [],
+    name: 'launchFee',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
     type: 'function',
   },
-  // Delete token
   {
-    inputs: [{ internalType: 'address', name: 'token', type: 'address' }],
-    name: 'deleteToken',
-    outputs: [],
-    stateMutability: 'nonpayable',
+    inputs: [],
+    name: 'graduationThreshold',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'buyFeeBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'sellFeeBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'treasury',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'bondingCurve',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'feeDistributor',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'leaderboard',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'superChat',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'pulseXRouter',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'paisleyRouter',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'WPLS',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getRouters',
+    outputs: [
+      { internalType: 'address', name: '', type: 'address' },
+      { internalType: 'address', name: '', type: 'address' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'treasuryExtraSellBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'graduationBonusBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'pulseXShareBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalVolume',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalTokensCreated',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalGraduated',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: '', type: 'address' }],
+    name: 'isAdmin',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getStats',
+    outputs: [
+      { internalType: 'uint256', name: '', type: 'uint256' },
+      { internalType: 'uint256', name: '', type: 'uint256' },
+      { internalType: 'uint256', name: '', type: 'uint256' },
+    ],
+    stateMutability: 'view',
     type: 'function',
   },
   // Events
@@ -87,6 +248,7 @@ export const FACTORY_ABI = [
       { indexed: true, internalType: 'address', name: 'creator', type: 'address' },
       { indexed: false, internalType: 'string', name: 'name', type: 'string' },
       { indexed: false, internalType: 'string', name: 'symbol', type: 'string' },
+      { indexed: false, internalType: 'address', name: 'referrer', type: 'address' },
     ],
     name: 'TokenCreated',
     type: 'event',
@@ -100,13 +262,34 @@ export const FACTORY_ABI = [
     name: 'TokenDeleted',
     type: 'event',
   },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'token', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'plsSpent', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'tokensReceived', type: 'uint256' },
+    ],
+    name: 'InitialBuy',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'user', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'token', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'volume', type: 'uint256' },
+      { indexed: false, internalType: 'bool', name: 'isBuy', type: 'bool' },
+    ],
+    name: 'VolumeRecorded',
+    type: 'event',
+  },
 ] as const;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PUMP.FUD TOKEN ABI - Bonding curve token
-// ═══════════════════════════════════════════════════════════════════════════
+// PumpFudToken ABI - V2 token with bonding curve logic INSIDE the token
+// Token handles buy/sell directly, uses BondingCurve contract for math
 export const TOKEN_ABI = [
-  // Buy/Sell
+  // Buy/Sell - bonding curve functions
   {
     inputs: [{ internalType: 'uint256', name: 'minTokens', type: 'uint256' }],
     name: 'buy',
@@ -190,6 +373,13 @@ export const TOKEN_ABI = [
   },
   {
     inputs: [],
+    name: 'bondingCurve',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'imageUri',
     outputs: [{ internalType: 'string', name: '', type: 'string' }],
     stateMutability: 'view',
@@ -237,6 +427,7 @@ export const TOKEN_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  // Chat/Board permissions
   {
     inputs: [{ internalType: 'address', name: 'user', type: 'address' }],
     name: 'canChat',
@@ -289,6 +480,7 @@ export const TOKEN_ABI = [
       { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
       { indexed: false, internalType: 'uint256', name: 'plsSpent', type: 'uint256' },
       { indexed: false, internalType: 'uint256', name: 'tokensBought', type: 'uint256' },
+      { indexed: false, internalType: 'address', name: 'referrer', type: 'address' },
     ],
     name: 'TokenBought',
     type: 'event',
@@ -323,6 +515,7 @@ export const TOKEN_ABI = [
     name: 'TokenDeleted',
     type: 'event',
   },
+  // ERC20 events
   {
     anonymous: false,
     inputs: [
@@ -345,9 +538,7 @@ export const TOKEN_ABI = [
   },
 ] as const;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// BONDING CURVE ABI - Price calculations
-// ═══════════════════════════════════════════════════════════════════════════
+// BondingCurve ABI - calculates purchase/sale returns
 export const BONDING_CURVE_ABI = [
   {
     inputs: [
@@ -392,9 +583,6 @@ export const BONDING_CURVE_ABI = [
   },
 ] as const;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SUPERCHAT ABI
-// ═══════════════════════════════════════════════════════════════════════════
 export const SUPERCHAT_ABI = [
   {
     inputs: [
@@ -449,9 +637,6 @@ export const SUPERCHAT_ABI = [
   },
 ] as const;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// LEADERBOARD ABI
-// ═══════════════════════════════════════════════════════════════════════════
 export const LEADERBOARD_ABI = [
   {
     inputs: [{ internalType: 'uint256', name: 'limit', type: 'uint256' }],
@@ -507,9 +692,6 @@ export const LEADERBOARD_ABI = [
   },
 ] as const;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// FEE DISTRIBUTOR ABI
-// ═══════════════════════════════════════════════════════════════════════════
 export const FEE_DISTRIBUTOR_ABI = [
   {
     inputs: [],

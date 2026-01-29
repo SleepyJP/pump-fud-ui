@@ -31,31 +31,14 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
     graduated: 'Graduated Tokens',
   };
 
-  // V1 Factory: tokenCount + tokens(index)
-  const { data: tokenCount } = useReadContract({
+  // V2 Factory: getTokens returns array of token addresses
+  const { data: tokenAddresses } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'tokenCount',
+    functionName: 'getTokens',
+    args: [BigInt(0), BigInt(limit)],
     query: { enabled: !!CONTRACTS.FACTORY },
   });
-
-  // Build multicall to fetch each token address by index
-  const tokenIndexContracts = Array.from({ length: Math.min(Number(tokenCount || 0), limit) }, (_, i) => ({
-    address: CONTRACTS.FACTORY,
-    abi: FACTORY_ABI,
-    functionName: 'tokens',
-    args: [BigInt(i)],
-  }));
-
-  const { data: tokenAddressResults } = useReadContracts({
-    contracts: tokenIndexContracts as any,
-    query: { enabled: Number(tokenCount || 0) > 0 },
-  });
-
-  // Extract addresses from multicall results
-  const tokenAddresses = (tokenAddressResults || [])
-    .map((r) => r.result as `0x${string}`)
-    .filter(Boolean);
 
   // Build multicall to get all token data from each token contract
   const tokenDataContracts = (tokenAddresses || []).flatMap((addr) => [
