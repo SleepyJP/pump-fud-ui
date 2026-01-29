@@ -1,4 +1,5 @@
-// PumpFud Factory ABI - V2 at 0xca5709b8d7dc6d0ce0be5f5d9fb6e5e1c9b81550
+// PumpFud Factory ABI - V2 at 0xeEdc047484bF8c3bC0B76b309f2ED7aeB25098Dd
+// Deployed: 2026-01-27 on PulseChain (369)
 // Bonding curve logic lives IN the token (PumpFudToken), not the factory
 export const FACTORY_ABI = [
   // V2 createToken - order: name, symbol, imageUri, description, referrer
@@ -150,6 +151,86 @@ export const FACTORY_ABI = [
   },
   {
     inputs: [],
+    name: 'pulseXRouter',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'paisleyRouter',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'WPLS',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getRouters',
+    outputs: [
+      { internalType: 'address', name: '', type: 'address' },
+      { internalType: 'address', name: '', type: 'address' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'treasuryExtraSellBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'graduationBonusBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'pulseXShareBps',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalVolume',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalTokensCreated',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalGraduated',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: '', type: 'address' }],
+    name: 'isAdmin',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'getStats',
     outputs: [
       { internalType: 'uint256', name: '', type: 'uint256' },
@@ -190,6 +271,17 @@ export const FACTORY_ABI = [
       { indexed: false, internalType: 'uint256', name: 'tokensReceived', type: 'uint256' },
     ],
     name: 'InitialBuy',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'user', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'token', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'volume', type: 'uint256' },
+      { indexed: false, internalType: 'bool', name: 'isBuy', type: 'bool' },
+    ],
+    name: 'VolumeRecorded',
     type: 'event',
   },
 ] as const;

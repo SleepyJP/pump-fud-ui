@@ -15,7 +15,7 @@ Executor: AQUEMINI via RALPH Loops
 
 | Contract | Address | On-Chain Verified |
 |----------|---------|-------------------|
-| Factory | `0xca5709b8d7dc6d0ce0be5f5d9fb6e5e1c9b81550` | YES |
+| Factory | `0xeEdc047484bF8c3bC0B76b309f2ED7aeB25098Dd` | YES |
 | BondingCurve | `0x8d487ab0c5a622d7bafc643bec09506ae3c5710b` | - |
 | FeeDistributor | `0x271aa055fa774dbb6f79a8d07d16f9e132bc1624` | - |
 | Leaderboard | `0xf851d6ffdb197332a5e6e7a8f6905d796cfbedbf` | - |
@@ -75,7 +75,7 @@ Factory.setGraduationThreshold(50000000000000000000000000)
 // 50,000,000 PLS = 50000000 * 10^18
 ```
 
-**Contract:** `0xca5709b8d7dc6d0ce0be5f5d9fb6e5e1c9b81550`
+**Contract:** `0xeEdc047484bF8c3bC0B76b309f2ED7aeB25098Dd`
 **Method:** `setGraduationThreshold(uint256)`
 **Signer:** Admin wallet
 
