@@ -23,11 +23,8 @@ export const config = getDefaultConfig({
   ssr: true,
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
 // PRODUCTION CONTRACT ADDRESSES - PulseChain 369
-// V2 Factory with working getTokens(), allTokensLength(), allTokens(i)
-// Deployed: 2026-01-27
-// ═══════════════════════════════════════════════════════════════════════════
+// V2 Factory with createTokenAndBuy - deployed 2026-01-27
 export const CONTRACTS = {
   FACTORY: '0xeEdc047484bF8c3bC0B76b309f2ED7aeB25098Dd' as const,
   BONDING_CURVE: '0x8D8b56Bc9e64db0759dD6adb4734244997464E9d' as const,
@@ -40,26 +37,12 @@ export const CONTRACTS = {
   WPLS: '0xA1077a294dDE1B09bB078844df40758a5D0f9a27' as const,
 } as const;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CONSTANTS - V2 contract HAS working launchFee() getter, cached here for speed
-// ═══════════════════════════════════════════════════════════════════════════
 export const CONSTANTS = {
-  // Launch fee: 100,000 PLS
-  LAUNCH_FEE: BigInt('100000000000000000000000'),
-  LAUNCH_FEE_DISPLAY: '100,000',
-
-  // Graduation threshold: 69,000 PLS (V2 is lower than V1's 50M)
-  GRADUATION_THRESHOLD: BigInt('69000000000000000000000'),
-  GRADUATION_THRESHOLD_DISPLAY: '69,000',
-
-  // Fee percentages
+  LAUNCH_FEE: BigInt('100000000000000000000000'), // 100,000 PLS
+  GRADUATION_THRESHOLD: BigInt('50000000000000000000000000'), // 50,000,000 PLS (50M)
   BUY_FEE_BPS: 100,
   SELL_FEE_BPS: 110,
-
-  // Chat thresholds
   CHAT_THRESHOLD_BPS: 100,  // 1% for live chat
   BOARD_THRESHOLD_BPS: 50,  // 0.5% for message board
-
-  // SuperChat tiers (in PLS)
   SUPERCHAT_TIERS: [0, 100, 500, 1000, 5000, 10000] as const,
 } as const;

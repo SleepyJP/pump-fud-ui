@@ -65,7 +65,7 @@ export default function LaunchPage() {
     const hasInitialBuy = initialBuyAmount && Number(initialBuyAmount) > 0;
 
     if (hasInitialBuy) {
-      // V1 Factory: createTokenAndBuy(name, symbol, description, imageUrl, buyAmount)
+      // V2 Factory: createTokenAndBuy - ONE TRANSACTION for create + buy
       const buyAmount = parseEther(initialBuyAmount);
       const totalValue = launchFee + buyAmount;
 
@@ -73,16 +73,29 @@ export default function LaunchPage() {
         address: CONTRACTS.FACTORY,
         abi: FACTORY_ABI,
         functionName: 'createTokenAndBuy',
-        args: [name, symbol, JSON.stringify(metadata), imageUri || '', buyAmount],
+        args: [
+          name,
+          symbol,
+          imageUri || '',
+          JSON.stringify(metadata),
+          '0x0000000000000000000000000000000000000000' as `0x${string}`, // No referrer
+          BigInt(0), // minTokensOut - 0 for initial buy at base price
+        ],
         value: totalValue,
       });
     } else {
-      // V1 Factory: createToken(name, symbol, description, imageUrl)
+      // V2 Factory: createToken - just create, no initial buy
       writeContract({
         address: CONTRACTS.FACTORY,
         abi: FACTORY_ABI,
         functionName: 'createToken',
-        args: [name, symbol, JSON.stringify(metadata), imageUri || ''],
+        args: [
+          name,
+          symbol,
+          imageUri || '',
+          JSON.stringify(metadata),
+          '0x0000000000000000000000000000000000000000' as `0x${string}`, // No referrer
+        ],
         value: launchFee,
       });
     }

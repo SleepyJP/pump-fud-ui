@@ -43,7 +43,7 @@ export const FACTORY_ABI = [
   },
   {
     inputs: [],
-    name: 'tokenCount',
+    name: 'allTokensLength',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
@@ -60,7 +60,7 @@ export const FACTORY_ABI = [
   },
   {
     inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
-    name: 'tokens',
+    name: 'allTokens',
     outputs: [{ internalType: 'address', name: '', type: 'address' }],
     stateMutability: 'view',
     type: 'function',
