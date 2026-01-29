@@ -30,7 +30,8 @@ export default function LaunchPage() {
   const [imageUri, setImageUri] = useState('');
   const [showSocials, setShowSocials] = useState(false);
   const [initialBuyAmount, setInitialBuyAmount] = useState('');
-  const [showInitialBuy, setShowInitialBuy] = useState(true);
+  // NOTE: Initial buy disabled - createTokenAndBuy is broken in V2 contract
+  const [showInitialBuy, setShowInitialBuy] = useState(false);
   const [socials, setSocials] = useState<SocialLinks>({
     twitter: '',
     telegram: '',
@@ -94,42 +95,23 @@ export default function LaunchPage() {
       imageUri: imageUri || '',
       metadata: JSON.stringify(metadata),
       launchFee: launchFee.toString(),
-      hasInitialBuy,
     });
 
-    if (hasInitialBuy) {
-      const buyAmount = parseEther(initialBuyAmount);
-      const totalValue = launchFee + buyAmount;
-
-      writeContract({
-        address: CONTRACTS.FACTORY,
-        abi: FACTORY_ABI,
-        functionName: 'createTokenAndBuy',
-        args: [
-          name,
-          symbol,
-          imageUri || '',
-          JSON.stringify(metadata),
-          zeroAddress,
-          BigInt(0),
-        ],
-        value: totalValue,
-      });
-    } else {
-      writeContract({
-        address: CONTRACTS.FACTORY,
-        abi: FACTORY_ABI,
-        functionName: 'createToken',
-        args: [
-          name,
-          symbol,
-          imageUri || '',
-          JSON.stringify(metadata),
-          zeroAddress,
-        ],
-        value: launchFee,
-      });
-    }
+    // NOTE: createTokenAndBuy is BROKEN in V2 contract - use createToken only
+    // Initial buy must be done as separate transaction after token creation
+    writeContract({
+      address: CONTRACTS.FACTORY,
+      abi: FACTORY_ABI,
+      functionName: 'createToken',
+      args: [
+        name,
+        symbol,
+        imageUri || '',
+        JSON.stringify(metadata),
+        zeroAddress,
+      ],
+      value: launchFee,
+    });
   };
 
   // Extract token address from receipt logs and redirect
