@@ -77,13 +77,12 @@ export default function LaunchPage() {
         value: totalValue,
       });
     } else {
-      // V2 Factory: createToken(name, symbol, imageUri, description, referrer)
-      const TREASURY = '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B' as `0x${string}`;
+      // V1 Factory: createToken(name, symbol, description, imageUrl)
       writeContract({
         address: CONTRACTS.FACTORY,
         abi: FACTORY_ABI,
         functionName: 'createToken',
-        args: [name, symbol, imageUri || '', JSON.stringify(metadata), TREASURY],
+        args: [name, symbol, JSON.stringify(metadata), imageUri || ''],
         value: launchFee,
       });
     }
