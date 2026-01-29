@@ -58,14 +58,31 @@ function TokensPageContent() {
 
   const { tokenCardPattern, tokenCardPatternOpacity, hiddenTokens } = useSiteSettings();
 
-  // V2: Fetch token addresses from factory
-  const { data: tokenAddressesRaw, refetch, isRefetching } = useReadContract({
+  // V1: Fetch token count from factory
+  const { data: tokenCount, refetch, isRefetching } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'getTokens',
-    args: [BigInt(0), BigInt(100)],
+    functionName: 'tokenCount',
     query: { enabled: !!CONTRACTS.FACTORY },
   });
+
+  // V1: Build multicall to fetch each token address by index
+  const tokenIndexContracts = Array.from({ length: Number(tokenCount || 0) }, (_, i) => ({
+    address: CONTRACTS.FACTORY,
+    abi: FACTORY_ABI,
+    functionName: 'tokens',
+    args: [BigInt(i)],
+  }));
+
+  const { data: tokenAddressResults } = useReadContracts({
+    contracts: tokenIndexContracts as any,
+    query: { enabled: Number(tokenCount || 0) > 0 },
+  });
+
+  // Extract addresses from multicall results
+  const tokenAddressesRaw = (tokenAddressResults || [])
+    .map((r) => r.result as `0x${string}`)
+    .filter(Boolean);
 
   // V2: Build multicall to get token data from each token contract
   const tokenDataContracts = (tokenAddressesRaw || []).flatMap((addr) => [

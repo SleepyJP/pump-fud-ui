@@ -69,16 +69,33 @@ export default function ProfilePage() {
     address: address,
   });
 
-  // V2: Get token addresses from factory
-  const { data: tokenAddresses } = useReadContract({
+  // V1: Get token count from factory
+  const { data: tokenCount } = useReadContract({
     address: CONTRACTS.FACTORY,
     abi: FACTORY_ABI,
-    functionName: 'getTokens',
-    args: [BigInt(0), BigInt(200)],
+    functionName: 'tokenCount',
     query: { enabled: !!CONTRACTS.FACTORY && isConnected },
   });
 
-  // V2: Build multicall to get token data from each token contract
+  // V1: Build multicall to fetch each token address by index
+  const tokenIndexContracts = Array.from({ length: Math.min(Number(tokenCount || 0), 200) }, (_, i) => ({
+    address: CONTRACTS.FACTORY,
+    abi: FACTORY_ABI,
+    functionName: 'tokens',
+    args: [BigInt(i)],
+  }));
+
+  const { data: tokenAddressResults } = useReadContracts({
+    contracts: tokenIndexContracts as any,
+    query: { enabled: Number(tokenCount || 0) > 0 && isConnected },
+  });
+
+  // Extract addresses from multicall results
+  const tokenAddresses = (tokenAddressResults || [])
+    .map((r) => r.result as `0x${string}`)
+    .filter(Boolean);
+
+  // V1: Build multicall to get token data from each token contract
   const tokenDataContracts = (tokenAddresses || []).flatMap((addr) => [
     { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
     { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
