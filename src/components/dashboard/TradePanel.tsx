@@ -2,30 +2,27 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useAccount, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { parseEther, formatEther, erc20Abi, Address } from 'viem';
-import { Button } from '@/components/ui/Button';
 import { TOKEN_ABI, BONDING_CURVE_ABI } from '@/config/abis';
 import { CONTRACTS } from '@/config/wagmi';
 import { formatPLS } from '@/lib/utils';
-import { ArrowDownUp, Flame, Zap, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowDownUp, Flame, Loader2, Wallet } from 'lucide-react';
 
 interface TradePanelProps {
   tokenAddress?: `0x${string}`;
   tokenSymbol?: string;
-  currentPrice?: bigint;
 }
 
-type TradeMode = 'buy' | 'sell' | 'burn';
+type TradeMode = 'buy' | 'sell';
 
-export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }: TradePanelProps) {
+export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN' }: TradePanelProps) {
   const [mode, setMode] = useState<TradeMode>('buy');
   const [amount, setAmount] = useState('');
-  const [slippage, setSlippage] = useState('5');
 
   const { address, isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const { data: plsBalance } = useBalance({ address });
-
-  const BURN_ADDRESS: Address = '0x000000000000000000000000000000000000dEaD';
 
   const { data: tokenBalanceRaw } = useReadContract({
     address: tokenAddress,
@@ -56,9 +53,7 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }
     abi: BONDING_CURVE_ABI,
     functionName: 'calculatePurchaseReturn',
     args: [totalSupply || BigInt(0), parsedAmount],
-    query: {
-      enabled: !!tokenAddress && mode === 'buy' && parsedAmount > BigInt(0) && totalSupply !== undefined,
-    },
+    query: { enabled: !!tokenAddress && mode === 'buy' && parsedAmount > BigInt(0) && totalSupply !== undefined },
   });
 
   const { data: sellQuote } = useReadContract({
@@ -66,34 +61,20 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }
     abi: BONDING_CURVE_ABI,
     functionName: 'calculateSaleReturn',
     args: [totalSupply || BigInt(0), parsedAmount],
-    query: {
-      enabled: !!tokenAddress && mode === 'sell' && parsedAmount > BigInt(0) && totalSupply !== undefined,
-    },
+    query: { enabled: !!tokenAddress && mode === 'sell' && parsedAmount > BigInt(0) && totalSupply !== undefined },
   });
 
-  const slippageBps = useMemo(() => {
-    const pct = parseFloat(slippage) || 5;
-    return BigInt(Math.floor(pct * 100));
-  }, [slippage]);
-
-  const minBuyTokens = useMemo(() => {
-    if (!buyQuote) return BigInt(0);
-    return (buyQuote * (BigInt(10000) - slippageBps)) / BigInt(10000);
-  }, [buyQuote, slippageBps]);
-
-  const minSellPls = useMemo(() => {
-    if (!sellQuote) return BigInt(0);
-    return (sellQuote * (BigInt(10000) - slippageBps)) / BigInt(10000);
-  }, [sellQuote, slippageBps]);
+  // 5% slippage default
+  const minBuyTokens = buyQuote ? (buyQuote * BigInt(9500)) / BigInt(10000) : BigInt(0);
+  const minSellPls = sellQuote ? (sellQuote * BigInt(9500)) / BigInt(10000) : BigInt(0);
 
   const { writeContract, data: hash, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess, isError } = useWaitForTransactionReceipt({ hash });
 
-  // Reset form on success
   useEffect(() => {
     if (isSuccess) {
       setAmount('');
-      setTimeout(() => reset(), 3000);
+      setTimeout(() => reset(), 2000);
     }
   }, [isSuccess, reset]);
 
@@ -108,205 +89,137 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', currentPrice }
         args: [minBuyTokens],
         value: parsedAmount,
       });
-    } else if (mode === 'sell') {
+    } else {
       writeContract({
         address: tokenAddress,
         abi: TOKEN_ABI,
         functionName: 'sell',
         args: [parsedAmount, minSellPls],
       });
-    } else if (mode === 'burn') {
-      writeContract({
-        address: tokenAddress,
-        abi: erc20Abi,
-        functionName: 'transfer',
-        args: [BURN_ADDRESS, parsedAmount],
-      });
     }
   };
 
-  const setMaxAmount = () => {
+  const setPercent = (pct: number) => {
     if (mode === 'buy' && plsBalance) {
-      const maxPls = plsBalance.value - parseEther('10'); // Keep 10 PLS for gas
-      if (maxPls > BigInt(0)) {
-        setAmount(formatEther(maxPls));
-      }
-    } else if ((mode === 'sell' || mode === 'burn') && tokenBalance) {
-      setAmount(formatEther(tokenBalance));
+      const available = plsBalance.value - parseEther('10');
+      if (available > BigInt(0)) setAmount(formatEther((available * BigInt(pct)) / BigInt(100)));
+    } else if (mode === 'sell' && tokenBalance) {
+      setAmount(formatEther((tokenBalance * BigInt(pct)) / BigInt(100)));
     }
   };
 
-  const getQuoteDisplay = () => {
-    if (mode === 'buy' && buyQuote) {
-      return `≈ ${formatPLS(buyQuote)} ${tokenSymbol}`;
-    }
-    if (mode === 'sell' && sellQuote) {
-      return `≈ ${formatPLS(sellQuote)} PLS`;
-    }
-    if (mode === 'burn') {
-      return `🔥 ${amount || '0'} ${tokenSymbol} burned forever`;
-    }
-    return null;
-  };
+  const quote = mode === 'buy' && buyQuote
+    ? `≈ ${formatPLS(buyQuote)} ${tokenSymbol}`
+    : mode === 'sell' && sellQuote
+    ? `≈ ${formatPLS(sellQuote)} PLS`
+    : null;
 
-  const isButtonDisabled = !isConnected || !tokenAddress || parsedAmount <= BigInt(0) || isPending || isConfirming;
+  const isDisabled = !isConnected || !tokenAddress || parsedAmount <= BigInt(0) || isPending || isConfirming;
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-fud-green/20">
-        <div className="flex items-center gap-2">
-          <ArrowDownUp size={18} className="text-fud-green" />
-          <span className="font-display text-sm text-fud-green">SWAP</span>
-        </div>
-        <span className="text-[10px] font-mono text-text-muted">${tokenSymbol}</span>
-      </div>
-
-      {/* Mode Tabs */}
-      <div className="flex border-b border-fud-green/10">
-        {(['buy', 'sell', 'burn'] as TradeMode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => { setMode(m); setAmount(''); }}
-            className={`flex-1 py-3 text-xs font-mono uppercase tracking-wider transition-all ${
-              mode === m
-                ? m === 'buy'
-                  ? 'bg-fud-green/20 text-fud-green border-b-2 border-fud-green'
-                  : m === 'sell'
-                    ? 'bg-orange-500/20 text-orange-400 border-b-2 border-orange-400'
-                    : 'bg-red-500/20 text-red-400 border-b-2 border-red-400'
-                : 'text-text-muted hover:text-text-primary hover:bg-dark-tertiary/50'
-            }`}
-          >
-            {m === 'burn' && <Flame size={12} className="inline mr-1" />}
-            {m}
-          </button>
-        ))}
+    <div className="h-full flex flex-col bg-black/40">
+      {/* Mode Toggle */}
+      <div className="flex border-b border-[#39ff14]/20">
+        <button
+          onClick={() => { setMode('buy'); setAmount(''); }}
+          className={`flex-1 py-3 text-sm font-mono font-bold transition-all ${
+            mode === 'buy' ? 'bg-[#39ff14]/20 text-[#39ff14] border-b-2 border-[#39ff14]' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          BUY
+        </button>
+        <button
+          onClick={() => { setMode('sell'); setAmount(''); }}
+          className={`flex-1 py-3 text-sm font-mono font-bold transition-all ${
+            mode === 'sell' ? 'bg-orange-500/20 text-orange-400 border-b-2 border-orange-400' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          SELL
+        </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-4 space-y-4 overflow-auto">
-        {/* Balance Display */}
+      <div className="flex-1 p-4 flex flex-col gap-3">
+        {/* Balance */}
         <div className="flex justify-between text-xs font-mono">
-          <span className="text-text-muted">Available Balance:</span>
-          <span className="text-text-primary">
+          <span className="text-gray-500">Balance:</span>
+          <span className="text-gray-300">
             {mode === 'buy'
               ? `${plsBalance ? formatPLS(plsBalance.value) : '0'} PLS`
-              : `${tokenBalance ? formatPLS(tokenBalance) : '0'} ${tokenSymbol}`
-            }
+              : `${tokenBalance ? formatPLS(tokenBalance) : '0'} ${tokenSymbol}`}
           </span>
         </div>
 
-        {/* Input */}
+        {/* Amount Input */}
         <div className="relative">
           <input
             type="text"
             value={amount}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (/^[0-9]*\.?[0-9]*$/.test(val)) {
-                setAmount(val);
-              }
-            }}
+            onChange={(e) => /^[0-9]*\.?[0-9]*$/.test(e.target.value) && setAmount(e.target.value)}
             placeholder="0.0"
-            className="w-full px-4 py-4 bg-dark-tertiary border-2 border-fud-green/20 rounded-xl font-mono text-2xl text-text-primary placeholder:text-text-muted/30 focus:outline-none focus:border-fud-green/50 transition-colors"
+            className="w-full px-4 py-4 bg-black/60 border border-gray-700 rounded-lg font-mono text-xl text-white placeholder:text-gray-600 focus:outline-none focus:border-[#39ff14]/50"
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-mono text-gray-500">
+            {mode === 'buy' ? 'PLS' : tokenSymbol}
+          </span>
+        </div>
+
+        {/* Quick % Buttons */}
+        <div className="flex gap-1">
+          {[25, 50, 75, 100].map((pct) => (
             <button
-              onClick={setMaxAmount}
-              className="px-2 py-1 text-[10px] font-mono bg-fud-green/20 text-fud-green rounded hover:bg-fud-green/30 transition-colors"
+              key={pct}
+              onClick={() => setPercent(pct)}
+              className="flex-1 py-1.5 text-xs font-mono bg-gray-800 text-gray-400 rounded hover:bg-gray-700 hover:text-white"
             >
-              MAX
+              {pct}%
             </button>
-            <span className="text-sm font-mono text-text-muted">
-              {mode === 'buy' ? 'PLS' : tokenSymbol}
-            </span>
-          </div>
+          ))}
         </div>
 
         {/* Quote */}
-        {parsedAmount > BigInt(0) && (
-          <div className="px-4 py-3 bg-dark-tertiary/50 rounded-lg border border-fud-green/10">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-text-muted">You receive:</span>
-              <span className={`text-sm font-mono font-bold ${
-                mode === 'buy' ? 'text-fud-green' : mode === 'sell' ? 'text-orange-400' : 'text-red-400'
-              }`}>
-                {getQuoteDisplay()}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Slippage */}
-        {mode !== 'burn' && (
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono text-text-muted">Slippage Tolerance:</span>
-            <div className="flex items-center gap-1">
-              {['1', '3', '5', '10'].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSlippage(s)}
-                  className={`px-2 py-1 text-[10px] font-mono rounded transition-all ${
-                    slippage === s
-                      ? 'bg-fud-green text-black'
-                      : 'bg-dark-tertiary text-text-muted hover:text-fud-green'
-                  }`}
-                >
-                  {s}%
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Transaction Status */}
-        {(isPending || isConfirming || isSuccess || isError) && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono ${
-            isSuccess
-              ? 'bg-fud-green/20 text-fud-green'
-              : isError
-                ? 'bg-red-500/20 text-red-400'
-                : 'bg-yellow-500/20 text-yellow-400'
-          }`}>
-            {(isPending || isConfirming) && <Loader2 size={14} className="animate-spin" />}
-            {isSuccess && <CheckCircle size={14} />}
-            {isError && <AlertTriangle size={14} />}
-            <span>
-              {isPending ? 'Confirm in wallet...' : isConfirming ? 'Processing...' : isSuccess ? 'Transaction successful!' : 'Transaction failed'}
+        {parsedAmount > BigInt(0) && quote && (
+          <div className="text-center py-2">
+            <span className={`text-lg font-mono font-bold ${mode === 'buy' ? 'text-[#39ff14]' : 'text-orange-400'}`}>
+              {quote}
             </span>
           </div>
         )}
-      </div>
 
-      {/* Action Button */}
-      <div className="p-4 border-t border-fud-green/10">
+        {/* Status */}
+        {(isPending || isConfirming || isSuccess || isError) && (
+          <div className={`text-center text-xs font-mono py-2 rounded ${
+            isSuccess ? 'text-[#39ff14] bg-[#39ff14]/10' : isError ? 'text-red-400 bg-red-500/10' : 'text-yellow-400 bg-yellow-500/10'
+          }`}>
+            {isPending ? 'Confirm in wallet...' : isConfirming ? 'Processing...' : isSuccess ? 'Success!' : 'Failed'}
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Action Button */}
         {!isConnected ? (
-          <Button variant="secondary" className="w-full" disabled>
-            Connect Wallet
-          </Button>
-        ) : !tokenAddress ? (
-          <Button variant="secondary" className="w-full" disabled>
-            Select Token
-          </Button>
-        ) : (
-          <Button
-            onClick={handleTrade}
-            disabled={isButtonDisabled}
-            loading={isPending || isConfirming}
-            className={`w-full text-lg py-4 ${
-              mode === 'buy'
-                ? ''
-                : mode === 'sell'
-                  ? 'bg-orange-500 border-orange-500 hover:bg-orange-400'
-                  : 'bg-red-500 border-red-500 hover:bg-red-400'
-            }`}
+          <button
+            onClick={openConnectModal}
+            className="w-full py-4 rounded-lg font-mono font-bold bg-[#39ff14] text-black hover:bg-[#39ff14]/80 flex items-center justify-center gap-2"
           >
-            {mode === 'buy' && <Zap size={18} className="mr-2" />}
-            {mode === 'sell' && <ArrowDownUp size={18} className="mr-2" />}
-            {mode === 'burn' && <Flame size={18} className="mr-2" />}
-            {mode === 'buy' ? 'BUY' : mode === 'sell' ? 'SELL' : 'BURN'} {tokenSymbol}
-          </Button>
+            <Wallet size={18} />
+            Connect Wallet
+          </button>
+        ) : (
+          <button
+            onClick={handleTrade}
+            disabled={isDisabled}
+            className={`w-full py-4 rounded-lg font-mono font-bold flex items-center justify-center gap-2 ${
+              mode === 'buy'
+                ? 'bg-[#39ff14] text-black hover:bg-[#39ff14]/80'
+                : 'bg-orange-500 text-black hover:bg-orange-400'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {isPending || isConfirming ? <Loader2 size={18} className="animate-spin" /> : <ArrowDownUp size={18} />}
+            {mode === 'buy' ? 'BUY' : 'SELL'} {tokenSymbol}
+          </button>
         )}
       </div>
     </div>

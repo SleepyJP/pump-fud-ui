@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { usePublicClient } from 'wagmi';
-import { parseAbiItem, formatUnits } from 'viem';
-import { useBlockRefresh } from '@/hooks/useSharedBlockNumber';
-import { ArrowUpRight, ArrowDownRight, Activity, ExternalLink } from 'lucide-react';
+import { usePublicClient, useReadContracts } from 'wagmi';
+import { parseAbiItem, formatEther, erc20Abi } from 'viem';
+import { ArrowUpRight, ArrowDownRight, Activity, ExternalLink, RefreshCw } from 'lucide-react';
 import { formatAddress } from '@/lib/utils';
 
 interface Transaction {
@@ -20,13 +19,15 @@ interface Transaction {
 
 interface TransactionFeedProps {
   tokenAddress?: `0x${string}`;
+  tokenSymbol?: string;
 }
 
-export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
+export function TransactionFeed({ tokenAddress, tokenSymbol = 'TOKEN' }: TransactionFeedProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<number>(0);
   const isMountedRef = useRef(true);
-  const seenTxsRef = useRef(new Set<string>());
 
   const publicClient = usePublicClient();
 
@@ -34,158 +35,163 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
     if (!tokenAddress || !publicClient || !isMountedRef.current) return;
 
     setIsLoading(true);
+    setError(null);
+
     try {
-      const buyEvent = parseAbiItem('event TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address referrer)');
+      // Check if contract has code
+      const code = await publicClient.getCode({ address: tokenAddress });
+      if (!code || code === '0x') {
+        setError('Token contract not found');
+        setIsLoading(false);
+        return;
+      }
+
+      const buyEvent = parseAbiItem('event TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address indexed referrer)');
       const sellEvent = parseAbiItem('event TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)');
 
       const currentBlock = await publicClient.getBlockNumber();
-      const fromBlock = currentBlock - BigInt(10000); // ~8 hours
+      const fromBlock = currentBlock > BigInt(20000) ? currentBlock - BigInt(20000) : BigInt(0);
+
+      console.log('[TransactionFeed] Fetching from block', fromBlock.toString(), 'to', currentBlock.toString());
 
       const [buyLogs, sellLogs] = await Promise.all([
         publicClient.getLogs({
           address: tokenAddress,
           event: buyEvent,
-          fromBlock: fromBlock > BigInt(0) ? fromBlock : BigInt(0),
+          fromBlock,
           toBlock: currentBlock,
-        }),
+        }).catch(e => { console.error('[TransactionFeed] Buy logs error:', e); return []; }),
         publicClient.getLogs({
           address: tokenAddress,
           event: sellEvent,
-          fromBlock: fromBlock > BigInt(0) ? fromBlock : BigInt(0),
+          fromBlock,
           toBlock: currentBlock,
-        }),
+        }).catch(e => { console.error('[TransactionFeed] Sell logs error:', e); return []; }),
       ]);
+
+      console.log('[TransactionFeed] Found', buyLogs.length, 'buys,', sellLogs.length, 'sells');
 
       if (!isMountedRef.current) return;
 
-      // Get block timestamps for recent blocks
-      const uniqueBlocks = [...new Set([...buyLogs, ...sellLogs].map(l => l.blockNumber).filter((bn): bn is bigint => bn !== undefined))];
+      // Get timestamps for unique blocks
+      const allLogs = [...buyLogs, ...sellLogs];
+      const uniqueBlocks = [...new Set(allLogs.map(l => l.blockNumber).filter((bn): bn is bigint => bn !== undefined))];
       const blockTimestamps: Record<string, number> = {};
 
-      await Promise.all(
-        uniqueBlocks.slice(-30).map(async (bn) => {
-          try {
-            const block = await publicClient.getBlock({ blockNumber: bn });
-            blockTimestamps[bn?.toString() ?? '0'] = Number(block.timestamp);
-          } catch {
-            blockTimestamps[bn?.toString() ?? '0'] = Math.floor(Date.now() / 1000);
-          }
-        })
-      );
+      // Fetch timestamps in batches
+      const batchSize = 10;
+      for (let i = 0; i < uniqueBlocks.length; i += batchSize) {
+        const batch = uniqueBlocks.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (bn) => {
+            try {
+              const block = await publicClient.getBlock({ blockNumber: bn });
+              blockTimestamps[bn.toString()] = Number(block.timestamp);
+            } catch {
+              blockTimestamps[bn.toString()] = Math.floor(Date.now() / 1000);
+            }
+          })
+        );
+      }
 
       if (!isMountedRef.current) return;
 
       const allTxs: Transaction[] = [];
 
       for (const log of buyLogs) {
-        const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint };
+        const args = log.args as { buyer?: `0x${string}`; plsSpent?: bigint; tokensBought?: bigint };
         if (!args?.buyer || !args?.plsSpent || !args?.tokensBought) continue;
-        const id = `${log.transactionHash}-${log.logIndex}`;
-        if (seenTxsRef.current.has(id)) continue;
-        seenTxsRef.current.add(id);
 
         allTxs.push({
-          id,
+          id: `${log.transactionHash}-${log.logIndex}`,
           type: 'buy',
           trader: args.buyer,
           plsAmount: args.plsSpent,
           tokenAmount: args.tokensBought,
           txHash: log.transactionHash,
-          blockNumber: log.blockNumber,
+          blockNumber: log.blockNumber ?? BigInt(0),
           timestamp: blockTimestamps[log.blockNumber?.toString() ?? '0'] || Math.floor(Date.now() / 1000),
         });
       }
 
       for (const log of sellLogs) {
-        const args = log.args as { seller: `0x${string}`; tokensSold: bigint; plsReceived: bigint };
+        const args = log.args as { seller?: `0x${string}`; tokensSold?: bigint; plsReceived?: bigint };
         if (!args?.seller || !args?.tokensSold || !args?.plsReceived) continue;
-        const id = `${log.transactionHash}-${log.logIndex}`;
-        if (seenTxsRef.current.has(id)) continue;
-        seenTxsRef.current.add(id);
 
         allTxs.push({
-          id,
+          id: `${log.transactionHash}-${log.logIndex}`,
           type: 'sell',
           trader: args.seller,
           plsAmount: args.plsReceived,
           tokenAmount: args.tokensSold,
           txHash: log.transactionHash,
-          blockNumber: log.blockNumber,
+          blockNumber: log.blockNumber ?? BigInt(0),
           timestamp: blockTimestamps[log.blockNumber?.toString() ?? '0'] || Math.floor(Date.now() / 1000),
         });
       }
 
-      // Sort by block (newest first) and merge with existing
-      allTxs.sort((a, b) => Number(b.blockNumber - a.blockNumber));
+      // Sort newest first
+      allTxs.sort((a, b) => b.timestamp - a.timestamp);
 
-      setTransactions(prev => {
-        const merged = [...allTxs, ...prev];
-        const unique = merged.filter((tx, i, arr) => arr.findIndex(t => t.id === tx.id) === i);
-        unique.sort((a, b) => Number(b.blockNumber - a.blockNumber));
-        return unique.slice(0, 50);
-      });
+      setTransactions(allTxs.slice(0, 50));
+      setLastRefresh(Date.now());
     } catch (err) {
       console.error('[TransactionFeed] Error:', err);
+      setError('Failed to fetch transactions');
     } finally {
       if (isMountedRef.current) setIsLoading(false);
     }
   }, [tokenAddress, publicClient]);
 
-  // Use shared block refresh - EVERY BLOCK
-  useBlockRefresh('txfeed', fetchTransactions, 1, !!tokenAddress);
-
-  // Initial fetch
+  // Initial fetch and refresh every 10 seconds
   useEffect(() => {
     if (tokenAddress) {
-      seenTxsRef.current.clear();
       setTransactions([]);
       fetchTransactions();
+      const interval = setInterval(fetchTransactions, 10000);
+      return () => clearInterval(interval);
     }
-  }, [tokenAddress]); // fetchTransactions intentionally excluded
+  }, [tokenAddress, fetchTransactions]);
 
-  // Cleanup
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
 
-  const formatAmount = (amt: bigint | undefined): string => {
-    if (!amt) return '0';
-    const num = Number(formatUnits(amt, 18));
+  const formatAmount = (amt: bigint): string => {
+    const num = Number(formatEther(amt));
     if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';
     if (num >= 1_000) return (num / 1_000).toFixed(2) + 'K';
-    return num.toFixed(2);
+    if (num >= 1) return num.toFixed(2);
+    return num.toFixed(4);
   };
 
   const formatTime = (timestamp: number): string => {
     const now = Math.floor(Date.now() / 1000);
     const diff = now - timestamp;
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
+    if (diff < 60) return `${diff}s`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+    return `${Math.floor(diff / 86400)}d`;
   };
 
   const buyCount = transactions.filter(t => t.type === 'buy').length;
   const sellCount = transactions.filter(t => t.type === 'sell').length;
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
+    <div className="h-full flex flex-col bg-black/40">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-fud-green/20">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[#39ff14]/20">
         <div className="flex items-center gap-2">
-          <Activity size={18} className="text-fud-green" />
-          <span className="font-display text-sm text-fud-green">TRANSACTIONS</span>
+          <Activity size={14} className="text-[#39ff14]" />
+          <span className="font-mono text-xs text-[#39ff14] font-bold">TRANSACTIONS</span>
         </div>
-        <div className="flex items-center gap-3 text-xs font-mono">
-          <span className="flex items-center gap-1 text-fud-green">
-            <ArrowUpRight size={12} />
-            {buyCount} buys
-          </span>
-          <span className="flex items-center gap-1 text-orange-400">
-            <ArrowDownRight size={12} />
-            {sellCount} sells
-          </span>
+        <div className="flex items-center gap-3 text-[10px] font-mono">
+          <span className="text-[#39ff14]">{buyCount} buys</span>
+          <span className="text-orange-400">{sellCount} sells</span>
+          <button onClick={fetchTransactions} className="text-gray-500 hover:text-[#39ff14]">
+            <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+          </button>
         </div>
       </div>
 
@@ -193,78 +199,68 @@ export function TransactionFeed({ tokenAddress }: TransactionFeedProps) {
       <div className="flex-1 overflow-auto">
         {!tokenAddress ? (
           <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <Activity size={32} className="mx-auto mb-2 text-text-muted opacity-50" />
-              <p className="text-text-muted text-xs font-mono">Select a token</p>
-            </div>
+            <p className="text-gray-600 text-xs font-mono">Select a token</p>
+          </div>
+        ) : error ? (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-red-400 text-xs font-mono">{error}</p>
           </div>
         ) : isLoading && transactions.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-fud-green/30 border-t-fud-green rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-[#39ff14]/30 border-t-[#39ff14] rounded-full animate-spin" />
           </div>
         ) : transactions.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <p className="text-text-muted text-xs font-mono">No transactions yet</p>
+            <p className="text-gray-600 text-xs font-mono">No transactions yet</p>
           </div>
         ) : (
-          <div className="divide-y divide-fud-green/5">
-            {transactions.map((tx) => (
-              <div
-                key={tx.id}
-                className={`flex items-center gap-3 px-4 py-2 hover:bg-fud-green/5 transition-colors ${
-                  tx.type === 'buy' ? 'border-l-2 border-fud-green' : 'border-l-2 border-orange-400'
-                }`}
-              >
-                {/* Icon */}
-                <div className={`p-1.5 rounded ${
-                  tx.type === 'buy' ? 'bg-fud-green/20' : 'bg-orange-500/20'
-                }`}>
-                  {tx.type === 'buy' ? (
-                    <ArrowUpRight size={14} className="text-fud-green" />
-                  ) : (
-                    <ArrowDownRight size={14} className="text-orange-400" />
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-mono font-bold ${
-                      tx.type === 'buy' ? 'text-fud-green' : 'text-orange-400'
-                    }`}>
-                      {tx.type === 'buy' ? 'BUY' : 'SELL'}
+          <table className="w-full text-[10px] font-mono">
+            <thead className="text-gray-500 border-b border-gray-800 sticky top-0 bg-black/80">
+              <tr>
+                <th className="text-left py-1.5 px-2">Type</th>
+                <th className="text-left py-1.5 px-2">Wallet</th>
+                <th className="text-right py-1.5 px-2">Amount</th>
+                <th className="text-right py-1.5 px-2">Value</th>
+                <th className="text-right py-1.5 px-2">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((tx) => (
+                <tr
+                  key={tx.id}
+                  className="border-b border-gray-800/50 hover:bg-[#39ff14]/5 cursor-pointer"
+                  onClick={() => window.open(`https://scan.pulsechain.com/tx/${tx.txHash}`, '_blank')}
+                >
+                  <td className="py-1.5 px-2">
+                    <span className={`flex items-center gap-1 ${tx.type === 'buy' ? 'text-[#39ff14]' : 'text-orange-400'}`}>
+                      {tx.type === 'buy' ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                      {tx.type.toUpperCase()}
                     </span>
+                  </td>
+                  <td className="py-1.5 px-2">
                     <a
                       href={`https://scan.pulsechain.com/address/${tx.trader}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs font-mono text-text-muted hover:text-fud-green"
+                      className="text-gray-400 hover:text-[#39ff14]"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {formatAddress(tx.trader)}
                     </a>
-                  </div>
-                  <p className="text-[10px] font-mono text-text-muted">
-                    {formatAmount(tx.tokenAmount)} tokens for {formatAmount(tx.plsAmount)} PLS
-                  </p>
-                </div>
-
-                {/* Time & Link */}
-                <div className="text-right flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-text-muted">
+                  </td>
+                  <td className={`py-1.5 px-2 text-right ${tx.type === 'buy' ? 'text-[#39ff14]' : 'text-orange-400'}`}>
+                    {formatAmount(tx.tokenAmount)} {tokenSymbol}
+                  </td>
+                  <td className="py-1.5 px-2 text-right text-gray-400">
+                    {formatAmount(tx.plsAmount)} PLS
+                  </td>
+                  <td className="py-1.5 px-2 text-right text-gray-500">
                     {formatTime(tx.timestamp)}
-                  </span>
-                  <a
-                    href={`https://scan.pulsechain.com/tx/${tx.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-text-muted hover:text-fud-green transition-colors"
-                  >
-                    <ExternalLink size={12} />
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

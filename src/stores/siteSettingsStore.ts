@@ -2,8 +2,15 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PanelType } from '@/types';
 
-// Your wallet address - only this wallet can access admin settings
-export const ADMIN_WALLET = '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B';
+// Admin wallet addresses - these wallets can access admin settings
+export const ADMIN_WALLET = '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B'; // Treasury
+export const ADMIN_WALLETS = [
+  '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B', // Treasury
+  '0xdBDA1341890EFCc30734EEC5d5a462a69a29b0B7', // Dev 1
+  '0x4bD4f261e7057fC8eA8127E6CF96e4102cc4C8fB', // Dev 2
+  '0x61D8adC8A10AE0E06B52fE78f0d0264eEdE74799', // Deployer
+  '0x31b8f9a85fa9b9258b5b5f1875dbd863999dca76', // SleepyJ
+];
 
 export interface ThemeColors {
   // Primary colors
@@ -275,6 +282,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
     '0x97abfde56c6c3bec676899c97de50c1ec679e2c4', // TEST - TESTIES
     '0x9ec33905f672bec08b1e95e44f5d2046d733a3e9', // TEST2 - TESTIE 2
     '0x6a4885c6a60a52ff270ec0a98ce6232eb7e0c95a', // FCKNBUTT - BUTT FUCKIN AMAZING
+    '0xcb86dff46b3C5d1c2f726e77a5fa6E5602E39B15', // PUMP.FUD - V2 factory test token
   ] as `0x${string}`[],
 };
 
@@ -435,7 +443,7 @@ export const useSiteSettings = create<SiteSettingsState>()(
     }),
     {
       name: 'pump-fud-site-settings',
-      version: 2, // Bump this when changing defaults
+      version: 3, // Bump this when changing defaults
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as SiteSettings;
         // Version 2: Add pre-hidden test tokens for clean launch
@@ -451,6 +459,14 @@ export const useSiteSettings = create<SiteSettingsState>()(
           const merged = [...new Set([...existingHidden, ...testTokens])];
           return { ...state, hiddenTokens: merged };
         }
+        // Version 3: Add V2 factory test token
+        if (version < 3) {
+          const v2TestToken = '0xcb86dff46b3C5d1c2f726e77a5fa6E5602E39B15' as `0x${string}`;
+          const existingHidden = state.hiddenTokens || [];
+          if (!existingHidden.some(t => t.toLowerCase() === v2TestToken.toLowerCase())) {
+            return { ...state, hiddenTokens: [...existingHidden, v2TestToken] };
+          }
+        }
         return state;
       },
     }
@@ -460,5 +476,5 @@ export const useSiteSettings = create<SiteSettingsState>()(
 // Helper to check if connected wallet is admin
 export const isAdminWallet = (address: string | undefined): boolean => {
   if (!address) return false;
-  return address.toLowerCase() === ADMIN_WALLET.toLowerCase();
+  return ADMIN_WALLETS.some(admin => admin.toLowerCase() === address.toLowerCase());
 };

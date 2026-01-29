@@ -17,40 +17,43 @@ import { MessageBoard } from './MessageBoard';
 import { LiveChat } from './LiveChat';
 import { PriceChart } from './PriceChart';
 import { BuySellsTable } from './BuySellsTable';
-import { TokenInfoCard } from './TokenInfoCard';
 import { SwapWidget } from './SwapWidget';
 import { HoldersList } from './HoldersList';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LAYOUT SPECIFICATION - FROM USER DRAWING - DO NOT DEVIATE
+// LAYOUT SPECIFICATION - UPDATED PER USER REQUEST
 // ═══════════════════════════════════════════════════════════════════════════════
-// ┌─────────────┬───────────────────────────────────┬─────────────┐
-// │   IMAGE     │                                   │   TOKEN     │
-// │   + INFO    │                                   │   INFO      │
-// ├─────────────┤                                   ├─────────────┤
-// │   MESSAGE   │            CHART                  │   SWAP      │
-// │   BOARD     │           (HUGE)                  │   WIDGET    │
-// ├─────────────┤          ~60% width               ├─────────────┤
-// │   LIVE      │                                   │  HOLDERS    │
-// │   CHAT      ├───────────────────────────────────┤   LIST      │
-// │             │       BUYS & SELLS TABLE          │             │
-// └─────────────┴───────────────────────────────────┴─────────────┘
+// ┌─────────────────────┬───────────────────────────────────┬─────────────┐
+// │                     │                                   │             │
+// │   TOKEN IMAGE       │                                   │             │
+// │   (BIG)             │                                   │             │
+// │                     │                                   │   SWAP      │
+// │   + DESCRIPTION     │            CHART                  │   WIDGET    │
+// │   + ALL INFO        │           (HUGE)                  │   (FULL     │
+// │   + SOCIALS         │                                   │   HEIGHT)   │
+// │                     │                                   │             │
+// │                     │                                   │             │
+// ├──────────┬──────────┼───────────────────────────────────┤             │
+// │ MESSAGE  │  LIVE    │       BUYS & SELLS TABLE          │             │
+// │ BOARD    │  CHAT    │                                   │             │
+// │ (small)  │ (small)  │                                   │             │
+// └──────────┴──────────┴───────────────────────────────────┴─────────────┘
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const DEFAULT_LAYOUT: Layout[] = [
-  // LEFT COLUMN (x: 0-4, w: 5)
-  { i: 'image-info', x: 0, y: 0, w: 5, h: 8, minW: 4, minH: 6, maxW: 8, maxH: 12 },
-  { i: 'message-board', x: 0, y: 8, w: 5, h: 10, minW: 4, minH: 6, maxW: 8, maxH: 16 },
-  { i: 'live-chat', x: 0, y: 18, w: 5, h: 10, minW: 4, minH: 6, maxW: 8, maxH: 14 },
+  // LEFT COLUMN - Token image + description (BIG) takes top
+  { i: 'image-info', x: 0, y: 0, w: 6, h: 18, minW: 5, minH: 12, maxW: 8, maxH: 24 },
+  // LEFT BOTTOM - Live chat + Message board split side by side
+  { i: 'live-chat', x: 0, y: 18, w: 3, h: 10, minW: 2, minH: 6, maxW: 6, maxH: 14 },
+  { i: 'message-board', x: 3, y: 18, w: 3, h: 10, minW: 2, minH: 6, maxW: 6, maxH: 14 },
 
-  // CENTER COLUMN (x: 5-18, w: 14) - CHART IS HUGE
-  { i: 'chart', x: 5, y: 0, w: 14, h: 18, minW: 10, minH: 12, maxW: 18, maxH: 24 },
-  { i: 'transactions', x: 5, y: 18, w: 14, h: 10, minW: 8, minH: 6, maxW: 18, maxH: 14 },
+  // CENTER COLUMN - Chart (huge) + Transactions below
+  { i: 'chart', x: 6, y: 0, w: 12, h: 18, minW: 8, minH: 12, maxW: 16, maxH: 24 },
+  { i: 'transactions', x: 6, y: 18, w: 12, h: 10, minW: 6, minH: 6, maxW: 16, maxH: 14 },
 
-  // RIGHT COLUMN (x: 19-23, w: 5)
-  { i: 'token-info', x: 19, y: 0, w: 5, h: 8, minW: 4, minH: 6, maxW: 8, maxH: 12 },
-  { i: 'swap', x: 19, y: 8, w: 5, h: 10, minW: 4, minH: 8, maxW: 8, maxH: 14 },
-  { i: 'holders', x: 19, y: 18, w: 5, h: 10, minW: 4, minH: 6, maxW: 8, maxH: 14 },
+  // RIGHT COLUMN - Swap (2/3 height), Holders (1/3 height)
+  { i: 'swap', x: 18, y: 0, w: 6, h: 19, minW: 5, minH: 14, maxW: 8, maxH: 26 },
+  { i: 'holders', x: 18, y: 19, w: 6, h: 9, minW: 4, minH: 6, maxW: 8, maxH: 14 },
 ];
 
 const STORAGE_KEY_PREFIX = 'pump-fud-dashboard-layout-';
@@ -217,15 +220,7 @@ export function TokenDashboard({
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div key="image-info">
           <DashboardPanel title="TOKEN" isEditing={!isLocked}>
-            <TokenImageInfo
-              tokenAddress={tokenAddress}
-              name={tokenName}
-              symbol={tokenSymbol}
-              image={imageUri}
-              description={description}
-              creator={creator}
-              socials={socials}
-            />
+            <TokenImageInfo tokenAddress={tokenAddress} />
           </DashboardPanel>
         </div>
 
@@ -266,35 +261,19 @@ export function TokenDashboard({
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 6: Token Info Card (RIGHT TOP) */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div key="token-info">
-          <DashboardPanel title="INFO" isEditing={!isLocked}>
-            <TokenInfoCard
-              tokenAddress={tokenAddress}
-              currentPrice={currentPrice}
-              totalSupply={totalSupply}
-              plsReserve={plsReserve}
-              graduated={graduated}
-            />
-          </DashboardPanel>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 7: Swap Widget (RIGHT MIDDLE) */}
+        {/* COMPONENT 6: Swap Widget (RIGHT TOP) */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div key="swap">
           <DashboardPanel title="SWAP" isEditing={!isLocked}>
             <SwapWidget
               tokenAddress={tokenAddress}
               tokenSymbol={tokenSymbol}
-              currentPrice={currentPrice}
             />
           </DashboardPanel>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 8: Holders List (RIGHT BOTTOM) */}
+        {/* COMPONENT 7: Holders List (RIGHT BOTTOM) */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div key="holders">
           <DashboardPanel title="HOLDERS" isEditing={!isLocked}>

@@ -205,7 +205,7 @@ export function DashboardGrid({
         </div>
         <div className="flex-1 overflow-hidden">
           <PanelErrorBoundary name="Swap">
-            <TradePanel tokenAddress={tokenAddress} tokenSymbol={tokenSymbol} currentPrice={currentPrice} />
+            <TradePanel tokenAddress={tokenAddress} tokenSymbol={tokenSymbol} />
           </PanelErrorBoundary>
         </div>
       </div>

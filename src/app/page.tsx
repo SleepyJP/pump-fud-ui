@@ -5,15 +5,13 @@ import Image from 'next/image';
 import { useAccount } from 'wagmi';
 import { Sparkles, TrendingUp, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-
-// Dev wallet that can see admin controls
-const DEV_WALLET = '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B'.toLowerCase();
+import { isAdminWallet } from '@/stores/siteSettingsStore';
 
 export default function HomePage() {
   const { address, isConnected } = useAccount();
 
-  // Check if connected wallet is dev wallet
-  const isDevWallet = isConnected && address?.toLowerCase() === DEV_WALLET;
+  // Check if connected wallet is admin
+  const isAdmin = isConnected && isAdminWallet(address);
 
   return (
     <div className="relative" style={{ height: 'calc(100vh - 64px - 120px)' }}>
@@ -47,11 +45,11 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Admin Settings - ONLY visible to dev wallet */}
-      {isDevWallet && (
-        <div className="fixed bottom-4 right-4">
+      {/* Admin Settings - ONLY visible to admin wallets */}
+      {isAdmin && (
+        <div className="fixed bottom-28 right-4 z-50">
           <Link href="/settings">
-            <Button variant="secondary" className="gap-2">
+            <Button variant="primary" className="gap-2 shadow-lg shadow-[#39ff14]/30 animate-pulse">
               <Settings size={16} />
               Admin Settings
             </Button>

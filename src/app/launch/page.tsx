@@ -30,8 +30,8 @@ export default function LaunchPage() {
   const [imageUri, setImageUri] = useState('');
   const [showSocials, setShowSocials] = useState(false);
   const [initialBuyAmount, setInitialBuyAmount] = useState('');
-  // NOTE: Initial buy disabled - createTokenAndBuy is broken in V2 contract
-  const [showInitialBuy, setShowInitialBuy] = useState(false);
+  // V3 Factory: createTokenAndBuy WORKS - initial buy enabled
+  const [showInitialBuy, setShowInitialBuy] = useState(true);
   const [socials, setSocials] = useState<SocialLinks>({
     twitter: '',
     telegram: '',
@@ -83,9 +83,11 @@ export default function LaunchPage() {
 
     const launchFee = parseEther('100000');
     const hasInitialBuy = initialBuyAmount && Number(initialBuyAmount) > 0;
+    const initialBuyPls = hasInitialBuy ? parseEther(initialBuyAmount) : BigInt(0);
+    const totalValue = launchFee + initialBuyPls;
 
-    // V2 ABI: createTokenAndBuy(name, symbol, imageUri, description, referrer, minTokensOut)
-    // V2 ABI: createToken(name, symbol, imageUri, description, referrer)
+    // V3 ABI: createTokenAndBuy(name, symbol, imageUri, description, referrer, minTokensOut)
+    // V3 ABI: createToken(name, symbol, imageUri, description, referrer)
     const zeroAddress = '0x0000000000000000000000000000000000000000' as `0x${string}`;
 
     console.log('🚀 Launch attempt:', {
@@ -95,23 +97,42 @@ export default function LaunchPage() {
       imageUri: imageUri || '',
       metadata: JSON.stringify(metadata),
       launchFee: launchFee.toString(),
+      initialBuy: initialBuyPls.toString(),
+      totalValue: totalValue.toString(),
+      usingCreateTokenAndBuy: hasInitialBuy,
     });
 
-    // NOTE: createTokenAndBuy is BROKEN in V2 contract - use createToken only
-    // Initial buy must be done as separate transaction after token creation
-    writeContract({
-      address: CONTRACTS.FACTORY,
-      abi: FACTORY_ABI,
-      functionName: 'createToken',
-      args: [
-        name,
-        symbol,
-        imageUri || '',
-        JSON.stringify(metadata),
-        zeroAddress,
-      ],
-      value: launchFee,
-    });
+    // V3 Factory: createTokenAndBuy WORKS - use it when initial buy > 0
+    if (hasInitialBuy) {
+      writeContract({
+        address: CONTRACTS.FACTORY,
+        abi: FACTORY_ABI,
+        functionName: 'createTokenAndBuy',
+        args: [
+          name,
+          symbol,
+          imageUri || '',
+          JSON.stringify(metadata),
+          zeroAddress,
+          BigInt(0), // minTokensOut - 0 for no slippage protection on initial buy
+        ],
+        value: totalValue,
+      });
+    } else {
+      writeContract({
+        address: CONTRACTS.FACTORY,
+        abi: FACTORY_ABI,
+        functionName: 'createToken',
+        args: [
+          name,
+          symbol,
+          imageUri || '',
+          JSON.stringify(metadata),
+          zeroAddress,
+        ],
+        value: launchFee,
+      });
+    }
   };
 
   // Extract token address from receipt logs and redirect

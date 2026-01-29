@@ -34,6 +34,7 @@ interface TokenInfo {
   name: string;
   symbol: string;
   graduated: boolean;
+  imageUri?: string;
   createdAt?: number;
   volume24h?: bigint;
   priceChange?: number;
@@ -73,6 +74,7 @@ function TokensPageContent() {
     { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
     { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
     { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
+    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'imageUri' },
   ]);
 
   const { data: tokenData } = useReadContracts({
@@ -90,7 +92,7 @@ function TokensPageContent() {
 
     setIsLoading(true);
     const tokenInfos: TokenInfo[] = [];
-    const fieldsPerToken = 4; // name, symbol, graduated, deleted
+    const fieldsPerToken = 5; // name, symbol, graduated, deleted, imageUri
 
     for (let i = 0; i < tokenAddressesRaw.length; i++) {
       const baseIndex = i * fieldsPerToken;
@@ -99,6 +101,7 @@ function TokensPageContent() {
       const symbol = tokenData[baseIndex + 1]?.result as string;
       const graduated = tokenData[baseIndex + 2]?.result as boolean || false;
       const deleted = tokenData[baseIndex + 3]?.result as boolean || false;
+      const imageUri = tokenData[baseIndex + 4]?.result as string || '';
 
       // Skip deleted or hidden tokens
       if (deleted) continue;
@@ -110,6 +113,7 @@ function TokensPageContent() {
           name,
           symbol,
           graduated,
+          imageUri,
           createdAt: 0, // V2 doesn't store createdAt
           priceChange: 0, // Would need price data
         });
@@ -298,10 +302,21 @@ function TokensPageContent() {
 
                   <CardContent className="p-4 relative z-10">
                     <div className="flex items-start justify-between mb-3">
-                      <div className="w-12 h-12 bg-fud-green/20 rounded-xl flex items-center justify-center">
-                        <span className="font-display text-fud-green text-lg">
-                          {token.symbol.slice(0, 2)}
-                        </span>
+                      <div className="w-14 h-14 rounded-xl overflow-hidden border border-fud-green/30 bg-black/40">
+                        {token.imageUri ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={token.imageUri}
+                            alt={token.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-fud-green/20 flex items-center justify-center">
+                            <span className="font-display text-fud-green text-lg">
+                              {token.symbol.slice(0, 2)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       {token.graduated && (
                         <span className="px-2 py-1 bg-fud-orange/20 text-fud-orange text-xs font-mono rounded-full flex items-center gap-1">

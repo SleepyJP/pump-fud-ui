@@ -291,13 +291,14 @@ export const TOKEN_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
-  // Events
+  // Events - FIXED: referrer is also indexed in the actual contract
   {
     anonymous: false,
     inputs: [
       { indexed: true, internalType: 'address', name: 'buyer', type: 'address' },
       { indexed: false, internalType: 'uint256', name: 'plsSpent', type: 'uint256' },
       { indexed: false, internalType: 'uint256', name: 'tokensBought', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'referrer', type: 'address' },
     ],
     name: 'TokenBought',
     type: 'event',

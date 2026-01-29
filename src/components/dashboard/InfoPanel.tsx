@@ -132,7 +132,7 @@ export function InfoPanel({ tokenAddress, tokenSymbol, creator }: InfoPanelProps
   }, [tokenAddress, publicClient]);
 
   // Use shared block refresh
-  useBlockRefresh('info', fetchData, 30, !!tokenAddress);
+  useBlockRefresh('info', fetchData, 1, !!tokenAddress);
 
   // Initial fetch
   useEffect(() => {
