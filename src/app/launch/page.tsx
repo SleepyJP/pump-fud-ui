@@ -47,11 +47,30 @@ export default function LaunchPage() {
   // Get user PLS balance
   const { data: plsBalance } = useBalance({ address });
 
-  const { writeContract, data: hash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess, data: receipt, error: txError } = useWaitForTransactionReceipt({ hash });
+  const [launchError, setLaunchError] = useState<string | null>(null);
+
+  // Log errors
+  useEffect(() => {
+    if (writeError) {
+      console.error('Write error:', writeError);
+      setLaunchError(writeError.message?.slice(0, 300) || 'Transaction failed');
+    }
+  }, [writeError]);
+
+  useEffect(() => {
+    if (txError) {
+      console.error('Tx error:', txError);
+      setLaunchError(txError.message?.slice(0, 300) || 'Transaction failed');
+    }
+  }, [txError]);
 
   const handleLaunch = () => {
     if (!name || !symbol || !CONTRACTS.FACTORY) return;
+
+    // Clear previous errors
+    setLaunchError(null);
 
     // Encode socials into description JSON for on-chain storage
     const metadata = {
@@ -66,7 +85,17 @@ export default function LaunchPage() {
 
     // V2 ABI: createTokenAndBuy(name, symbol, imageUri, description, referrer, minTokensOut)
     // V2 ABI: createToken(name, symbol, imageUri, description, referrer)
-    const zeroAddress = '0x0000000000000000000000000000000000000000' as const;
+    const zeroAddress = '0x0000000000000000000000000000000000000000' as `0x${string}`;
+
+    console.log('🚀 Launch attempt:', {
+      factory: CONTRACTS.FACTORY,
+      name,
+      symbol,
+      imageUri: imageUri || '',
+      metadata: JSON.stringify(metadata),
+      launchFee: launchFee.toString(),
+      hasInitialBuy,
+    });
 
     if (hasInitialBuy) {
       const buyAmount = parseEther(initialBuyAmount);
@@ -673,6 +702,22 @@ export default function LaunchPage() {
                 </div>
               )}
             </div>
+
+            {/* Error Display */}
+            {launchError && (
+              <div style={{
+                padding: '16px',
+                marginBottom: '16px',
+                background: 'rgba(239,68,68,0.1)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: '8px',
+                color: '#ef4444',
+                fontSize: '13px',
+                fontFamily: 'monospace',
+              }}>
+                ❌ {launchError}
+              </div>
+            )}
 
             {/* Submit Button */}
             {isConnected ? (
