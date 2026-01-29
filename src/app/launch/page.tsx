@@ -65,37 +65,25 @@ export default function LaunchPage() {
     const hasInitialBuy = initialBuyAmount && Number(initialBuyAmount) > 0;
 
     if (hasInitialBuy) {
-      // V2 Factory: createTokenAndBuy(name, symbol, imageUri, description, referrer, minTokensOut)
+      // V1 Factory: createTokenAndBuy(name, symbol, description, imageUrl, buyAmount)
       const buyAmount = parseEther(initialBuyAmount);
       const totalValue = launchFee + buyAmount;
-      const zeroAddress = '0x0000000000000000000000000000000000000000' as `0x${string}`;
 
       writeContract({
         address: CONTRACTS.FACTORY,
         abi: FACTORY_ABI,
         functionName: 'createTokenAndBuy',
-        args: [
-          name,
-          symbol,
-          imageUri || '',
-          JSON.stringify(metadata),
-          zeroAddress, // referrer
-          BigInt(0), // minTokensOut (0 = no slippage protection)
-        ],
+        args: [name, symbol, JSON.stringify(metadata), imageUri || '', buyAmount],
         value: totalValue,
       });
     } else {
-      // V1 Factory: createToken(name, symbol, description, imageUrl)
+      // V2 Factory: createToken(name, symbol, imageUri, description, referrer)
+      const TREASURY = '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B' as `0x${string}`;
       writeContract({
         address: CONTRACTS.FACTORY,
         abi: FACTORY_ABI,
         functionName: 'createToken',
-        args: [
-          name,
-          symbol,
-          JSON.stringify(metadata),
-          imageUri || '',
-        ],
+        args: [name, symbol, imageUri || '', JSON.stringify(metadata), TREASURY],
         value: launchFee,
       });
     }
