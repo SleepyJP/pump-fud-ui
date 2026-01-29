@@ -79,39 +79,62 @@ function TokensPageContent() {
     query: { enabled: Number(tokenCount || 0) > 0 },
   });
 
-  // Extract addresses from multicall results
-  const tokenAddressesRaw = (tokenAddressResults || [])
-    .map((r) => r.result as `0x${string}`)
-    .filter(Boolean);
+  // Memoize extracted addresses to prevent unnecessary re-renders
+  const tokenAddresses = useMemo(() => {
+    if (!tokenAddressResults) return [];
+    return tokenAddressResults
+      .map((r) => r.result as `0x${string}`)
+      .filter(Boolean);
+  }, [tokenAddressResults]);
 
-  // V2: Build multicall to get token data from each token contract
-  const tokenDataContracts = (tokenAddressesRaw || []).flatMap((addr) => [
-    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
-    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
-    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
-    { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
-  ]);
+  // V1: Build multicall to get token data from each token contract
+  const tokenDataContracts = useMemo(() => {
+    return tokenAddresses.flatMap((addr) => [
+      { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'name' },
+      { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'symbol' },
+      { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'graduated' },
+      { address: addr as `0x${string}`, abi: TOKEN_ABI, functionName: 'deleted' },
+    ]);
+  }, [tokenAddresses]);
 
   const { data: tokenData } = useReadContracts({
     contracts: tokenDataContracts as any,
     query: { enabled: tokenDataContracts.length > 0 },
   });
 
-  // Load token details from V2 multicall
+  // Load token details from V1 multicall
   useEffect(() => {
-    if (!tokenAddressesRaw || tokenAddressesRaw.length === 0 || !tokenData) {
+    // Wait for tokenCount to load
+    if (tokenCount === undefined) {
+      setIsLoading(true);
+      return;
+    }
+
+    // If no tokens exist
+    if (Number(tokenCount) === 0) {
       setIsLoading(false);
       setTokens([]);
       return;
     }
 
-    setIsLoading(true);
+    // Wait for token addresses to load
+    if (tokenAddresses.length === 0) {
+      setIsLoading(true);
+      return;
+    }
+
+    // Wait for token data to load
+    if (!tokenData || tokenData.length === 0) {
+      setIsLoading(true);
+      return;
+    }
+
     const tokenInfos: TokenInfo[] = [];
     const fieldsPerToken = 4; // name, symbol, graduated, deleted
 
-    for (let i = 0; i < tokenAddressesRaw.length; i++) {
+    for (let i = 0; i < tokenAddresses.length; i++) {
       const baseIndex = i * fieldsPerToken;
-      const addr = tokenAddressesRaw[i] as `0x${string}`;
+      const addr = tokenAddresses[i] as `0x${string}`;
       const name = tokenData[baseIndex]?.result as string;
       const symbol = tokenData[baseIndex + 1]?.result as string;
       const graduated = tokenData[baseIndex + 2]?.result as boolean || false;
@@ -127,15 +150,15 @@ function TokensPageContent() {
           name,
           symbol,
           graduated,
-          createdAt: 0, // V2 doesn't store createdAt
-          priceChange: 0, // Would need price data
+          createdAt: 0,
+          priceChange: 0,
         });
       }
     }
 
     setTokens(tokenInfos);
     setIsLoading(false);
-  }, [tokenAddressesRaw, tokenData, hiddenTokens]);
+  }, [tokenCount, tokenAddresses, tokenData, hiddenTokens]);
 
   // Filter and search tokens
   const filteredTokens = useMemo(() => {
