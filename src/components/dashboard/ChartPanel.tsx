@@ -327,31 +327,35 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         const width = container.clientWidth;
         const height = container.clientHeight;
 
+        // DEX Screener / TradingView style chart
         const chartInstance = createChart(container, {
           width,
           height,
           layout: {
-            background: { type: ColorType.Solid, color: 'transparent' },
-            textColor: '#9ca3af',
-            fontFamily: "'JetBrains Mono', monospace",
+            background: { type: ColorType.Solid, color: '#131722' },
+            textColor: '#d1d4dc',
+            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           },
           grid: {
-            vertLines: { color: 'rgba(214, 255, 224, 0.05)', style: LineStyle.Dotted },
-            horzLines: { color: 'rgba(214, 255, 224, 0.05)', style: LineStyle.Dotted },
+            vertLines: { color: 'rgba(42, 46, 57, 0.6)' },
+            horzLines: { color: 'rgba(42, 46, 57, 0.6)' },
           },
           crosshair: {
             mode: CrosshairMode.Normal,
-            vertLine: { color: 'rgba(214, 255, 224, 0.5)', labelBackgroundColor: '#d6ffe0' },
-            horzLine: { color: 'rgba(214, 255, 224, 0.5)', labelBackgroundColor: '#d6ffe0' },
+            vertLine: { color: '#758696', labelBackgroundColor: '#2a2e39' },
+            horzLine: { color: '#758696', labelBackgroundColor: '#2a2e39' },
           },
           rightPriceScale: {
-            borderColor: 'rgba(214, 255, 224, 0.2)',
+            borderColor: '#2a2e39',
             scaleMargins: { top: 0.1, bottom: 0.2 },
+            mode: 1, // Logarithmic for memecoins
           },
           timeScale: {
-            borderColor: 'rgba(214, 255, 224, 0.2)',
+            borderColor: '#2a2e39',
             timeVisible: true,
-            secondsVisible: true, // BEAST: Show seconds for precision
+            secondsVisible: false,
+            barSpacing: 6,
+            minBarSpacing: 4,
           },
           handleScroll: { vertTouchDrag: false },
         });
@@ -360,12 +364,12 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
         // Create initial candlestick series RIGHT HERE - no async bullshit
         const candleSeries = chartInstance.addSeries(CandlestickSeries, {
-          upColor: '#d6ffe0',
-          downColor: '#ef4444',
-          borderUpColor: '#d6ffe0',
-          borderDownColor: '#ef4444',
-          wickUpColor: '#d6ffe0',
-          wickDownColor: '#ef4444',
+          upColor: '#26a69a',
+          downColor: '#ef5350',
+          borderUpColor: '#26a69a',
+          borderDownColor: '#ef5350',
+          wickUpColor: '#26a69a',
+          wickDownColor: '#ef5350',
         });
         candleSeriesRef.current = candleSeries;
         volumeSeriesRef.current = null;
@@ -450,39 +454,39 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       switch (chartType) {
         case 'candles':
           newSeries = chartRef.current.addSeries(CandlestickSeries, {
-            upColor: '#d6ffe0',
-            downColor: '#ef4444',
-            borderUpColor: '#d6ffe0',
-            borderDownColor: '#ef4444',
-            wickUpColor: '#d6ffe0',
-            wickDownColor: '#ef4444',
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderUpColor: '#26a69a',
+            borderDownColor: '#ef5350',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
           });
           break;
         case 'hollow':
           newSeries = chartRef.current.addSeries(CandlestickSeries, {
             upColor: 'transparent',
             downColor: 'transparent',
-            borderUpColor: '#d6ffe0',
-            borderDownColor: '#ef4444',
-            wickUpColor: '#d6ffe0',
-            wickDownColor: '#ef4444',
+            borderUpColor: '#26a69a',
+            borderDownColor: '#ef5350',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
           });
           break;
         case 'bars':
           newSeries = chartRef.current.addSeries(BarSeries, {
-            upColor: '#d6ffe0',
-            downColor: '#ef4444',
+            upColor: '#26a69a',
+            downColor: '#ef5350',
           });
           break;
         case 'line':
           newSeries = chartRef.current.addSeries(LineSeries, {
-            color: '#d6ffe0',
+            color: '#26a69a',
             lineWidth: 2,
           });
           break;
         case 'area':
           newSeries = chartRef.current.addSeries(AreaSeries, {
-            lineColor: '#d6ffe0',
+            lineColor: '#26a69a',
             topColor: 'rgba(214, 255, 224, 0.4)',
             bottomColor: 'rgba(214, 255, 224, 0.0)',
             lineWidth: 2,
@@ -490,12 +494,12 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           break;
         default:
           newSeries = chartRef.current.addSeries(CandlestickSeries, {
-            upColor: '#d6ffe0',
-            downColor: '#ef4444',
-            borderUpColor: '#d6ffe0',
-            borderDownColor: '#ef4444',
-            wickUpColor: '#d6ffe0',
-            wickDownColor: '#ef4444',
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderUpColor: '#26a69a',
+            borderDownColor: '#ef5350',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
           });
       }
 
@@ -542,7 +546,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           candleSeriesRef.current.setData(
             validCandles.map((c) => {
               const isBuyDominant = c.buyVolume >= c.sellVolume;
-              const color = isBuyDominant ? '#d6ffe0' : '#ef4444';
+              const color = isBuyDominant ? '#26a69a' : '#ef5350';
 
               return {
                 time: c.time,
