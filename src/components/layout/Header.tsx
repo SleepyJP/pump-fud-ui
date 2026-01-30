@@ -31,7 +31,7 @@ export function Header() {
     />
   ) : (
     <span className="font-display text-2xl font-bold tracking-tight">
-      <span className="text-fud-green" style={{ textShadow: '0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 30px #00ff88' }}>PUMP</span>
+      <span className="text-fud-green" style={{ textShadow: '0 0 10px #d6ffe0, 0 0 20px #d6ffe0, 0 0 30px #d6ffe0' }}>PUMP</span>
       <span className="text-white" style={{ textShadow: '0 0 10px #ffffff, 0 0 20px #ffffff, 0 0 30px #ffffff' }}>.FUD</span>
     </span>
   );

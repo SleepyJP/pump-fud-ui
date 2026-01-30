@@ -9,10 +9,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'fud-green': '#00ff88',
-        'fud-green-bright': '#00FF41',
-        'fud-green-neon': '#39FF14',
-        'fud-green-dark': '#00CC00',
+        'fud-green': '#d6ffe0',
+        'fud-green-bright': '#d6ffe0',
+        'fud-green-neon': '#d6ffe0',
+        'fud-green-dark': '#a8e6b0',
         'fud-pink': '#FF00FF',
         'fud-purple': '#8b5cf6',
         'fud-red': '#ef4444',
@@ -22,7 +22,7 @@ const config: Config = {
         'dark-tertiary': '#1f1f1f',
         'dark-card': '#0d0d0d',
         'border-primary': '#2a2a2a',
-        'border-glow': 'rgba(0, 255, 136, 0.3)',
+        'border-glow': 'rgba(214, 255, 224, 0.3)',
         'text-primary': '#ffffff',
         'text-secondary': '#d1d5db',
         'text-muted': '#9ca3af',
@@ -39,12 +39,12 @@ const config: Config = {
       },
       keyframes: {
         neonPulse: {
-          '0%, 100%': { boxShadow: '0 0 5px #00FF00, 0 0 10px #00FF00, 0 0 20px #00FF00' },
-          '50%': { boxShadow: '0 0 10px #00FF00, 0 0 20px #00FF00, 0 0 40px #00FF00' },
+          '0%, 100%': { boxShadow: '0 0 5px #d6ffe0, 0 0 10px #d6ffe0, 0 0 20px #d6ffe0' },
+          '50%': { boxShadow: '0 0 10px #d6ffe0, 0 0 20px #d6ffe0, 0 0 40px #d6ffe0' },
         },
         glow: {
-          '0%': { textShadow: '0 0 10px #00FF00, 0 0 20px #00FF00' },
-          '100%': { textShadow: '0 0 20px #00FF00, 0 0 40px #00FF00, 0 0 60px #00FF00' },
+          '0%': { textShadow: '0 0 10px #d6ffe0, 0 0 20px #d6ffe0' },
+          '100%': { textShadow: '0 0 20px #d6ffe0, 0 0 40px #d6ffe0, 0 0 60px #d6ffe0' },
         },
         scan: {
           '0%': { backgroundPosition: '0% 0%' },
@@ -52,7 +52,7 @@ const config: Config = {
         },
       },
       backgroundImage: {
-        'grid-pattern': 'linear-gradient(rgba(0,255,0,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,0,0.03) 1px, transparent 1px)',
+        'grid-pattern': 'linear-gradient(rgba(214,255,224,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(214,255,224,0.03) 1px, transparent 1px)',
       },
     },
   },

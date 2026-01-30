@@ -108,7 +108,7 @@ describe('PriceChart (ChartPanel)', () => {
     it('15m timeframe active by default', () => {
       render(<ChartPanel {...mockProps} />);
       const tf15m = screen.getByText('15m');
-      expect(tf15m).toHaveClass('bg-[#39ff14]');
+      expect(tf15m).toHaveClass('bg-[#d6ffe0]');
     });
 
     it('changes timeframe on button click', async () => {
@@ -118,7 +118,7 @@ describe('PriceChart (ChartPanel)', () => {
       const tf1h = screen.getByText('1h');
       await user.click(tf1h);
 
-      expect(tf1h).toHaveClass('bg-[#39ff14]');
+      expect(tf1h).toHaveClass('bg-[#d6ffe0]');
     });
 
     it('deselects previous timeframe on change', async () => {
@@ -130,8 +130,8 @@ describe('PriceChart (ChartPanel)', () => {
 
       await user.click(tf1h);
 
-      expect(tf15m).not.toHaveClass('bg-[#39ff14]');
-      expect(tf1h).toHaveClass('bg-[#39ff14]');
+      expect(tf15m).not.toHaveClass('bg-[#d6ffe0]');
+      expect(tf1h).toHaveClass('bg-[#d6ffe0]');
     });
   });
 
@@ -145,7 +145,7 @@ describe('PriceChart (ChartPanel)', () => {
 
     it('displays price in neon green', () => {
       const { container } = render(<ChartPanel {...mockProps} />);
-      const greenElements = container.querySelectorAll('.text-\\[\\#39ff14\\]');
+      const greenElements = container.querySelectorAll('.text-\\[\\#d6ffe0\\]');
       expect(greenElements.length).toBeGreaterThan(0);
     });
   });

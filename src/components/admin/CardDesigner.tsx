@@ -16,7 +16,7 @@ const PRESET_PATTERNS = [
 ];
 
 const GRADIENT_PRESETS = [
-  { id: 'cyber', name: 'Cyber Green', value: 'linear-gradient(135deg, rgba(0,255,136,0.1) 0%, rgba(0,0,0,0) 100%)' },
+  { id: 'cyber', name: 'Cyber Green', value: 'linear-gradient(135deg, rgba(214,255,224,0.1) 0%, rgba(0,0,0,0) 100%)' },
   { id: 'purple', name: 'Deep Purple', value: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(0,0,0,0) 100%)' },
   { id: 'fire', name: 'Fire', value: 'linear-gradient(135deg, rgba(255,136,0,0.1) 0%, rgba(255,0,0,0.05) 100%)' },
   { id: 'ocean', name: 'Ocean', value: 'linear-gradient(135deg, rgba(0,136,255,0.1) 0%, rgba(0,255,200,0.05) 100%)' },

@@ -140,26 +140,28 @@ async function handleTokenDelisted(log: Log) {
   }
 }
 
-// Process Buy event
-async function handleBuy(log: Log, tokenAddress: `0x${string}`) {
+// Process Buy event (V2 format)
+async function handleBuy(log: Log & { args?: any }, tokenAddress: `0x${string}`) {
   try {
-    const decoded = decodeEventLog({
-      abi: TOKEN_ABI,
-      data: log.data,
-      topics: log.topics,
-    });
+    // V2: { token, buyer, plsIn, tokensOut, referrer }
+    const args = (log as any).args;
+    const buyer = args.buyer as `0x${string}`;
+    const plsIn = args.plsIn as bigint;
+    const tokensOut = args.tokensOut as bigint;
+    const eventReferrer = args.referrer as `0x${string}`;
 
-    const { buyer, plsIn, tokensOut, fee } = decoded.args as any;
     const fees = calculateBuyFees(plsIn);
 
-    // Check if buyer has a referrer
-    const referrer = getReferrer(buyer);
+    // Check referrer from event or database
+    const referrer = eventReferrer && eventReferrer !== '0x0000000000000000000000000000000000000000'
+      ? eventReferrer
+      : getReferrer(buyer);
     let referrerFee = 0n;
     if (referrer) {
       referrerFee = calculateReferralFee(fees.treasuryFee);
     }
 
-    console.log(`💰 Buy: ${buyer} bought ${tokensOut} tokens for ${plsIn} PLS (fee: ${fee})`);
+    console.log(`💰 Buy: ${buyer} bought ${tokensOut} tokens for ${plsIn} PLS on ${tokenAddress}`);
 
     recordSwap({
       txHash: log.transactionHash!,
@@ -170,7 +172,7 @@ async function handleBuy(log: Log, tokenAddress: `0x${string}`) {
       isBuy: true,
       amountIn: plsIn,
       amountOut: tokensOut,
-      feeAmount: fee,
+      feeAmount: fees.totalFee,
       userFee: fees.userFee,
       treasuryFee: fees.treasuryFee - referrerFee,
       referrerAddress: referrer || undefined,
@@ -181,26 +183,28 @@ async function handleBuy(log: Log, tokenAddress: `0x${string}`) {
   }
 }
 
-// Process Sell event
-async function handleSell(log: Log, tokenAddress: `0x${string}`) {
+// Process Sell event (V2 format)
+async function handleSell(log: Log & { args?: any }, tokenAddress: `0x${string}`) {
   try {
-    const decoded = decodeEventLog({
-      abi: TOKEN_ABI,
-      data: log.data,
-      topics: log.topics,
-    });
+    // V2: { token, seller, tokensIn, plsOut, referrer }
+    const args = (log as any).args;
+    const seller = args.seller as `0x${string}`;
+    const tokensIn = args.tokensIn as bigint;
+    const plsOut = args.plsOut as bigint;
+    const eventReferrer = args.referrer as `0x${string}`;
 
-    const { seller, tokensIn, plsOut, fee } = decoded.args as any;
     const fees = calculateSellFees(plsOut);
 
-    // Check if seller has a referrer
-    const referrer = getReferrer(seller);
+    // Check referrer from event or database
+    const referrer = eventReferrer && eventReferrer !== '0x0000000000000000000000000000000000000000'
+      ? eventReferrer
+      : getReferrer(seller);
     let referrerFee = 0n;
     if (referrer) {
       referrerFee = calculateReferralFee(fees.treasuryFee);
     }
 
-    console.log(`💸 Sell: ${seller} sold ${tokensIn} tokens for ${plsOut} PLS (fee: ${fee})`);
+    console.log(`💸 Sell: ${seller} sold ${tokensIn} tokens for ${plsOut} PLS on ${tokenAddress}`);
 
     recordSwap({
       txHash: log.transactionHash!,
@@ -211,7 +215,7 @@ async function handleSell(log: Log, tokenAddress: `0x${string}`) {
       isBuy: false,
       amountIn: tokensIn,
       amountOut: plsOut,
-      feeAmount: fee,
+      feeAmount: fees.totalFee,
       userFee: fees.userFee,
       treasuryFee: fees.treasuryFee - referrerFee,
       referrerAddress: referrer || undefined,
@@ -245,38 +249,41 @@ async function processBlockRange(fromBlock: bigint, toBlock: bigint) {
     }
   }
 
-  // Get swap events from active tokens
-  if (activeTokens.size > 0) {
-    const buyEvent = parseAbiItem('event Buy(address indexed buyer, uint256 plsIn, uint256 tokensOut, uint256 fee)');
-    const sellEvent = parseAbiItem('event Sell(address indexed seller, uint256 tokensIn, uint256 plsOut, uint256 fee)');
+  // V2: Get swap events from FACTORY (not individual tokens)
+  const buyEvent = parseAbiItem('event TokenBought(address indexed token, address indexed buyer, uint256 plsIn, uint256 tokensOut, address referrer)');
+  const sellEvent = parseAbiItem('event TokenSold(address indexed token, address indexed seller, uint256 tokensIn, uint256 plsOut, address referrer)');
 
-    for (const tokenAddress of activeTokens) {
-      try {
-        const buyLogs = await client.getLogs({
-          address: tokenAddress,
-          event: buyEvent,
-          fromBlock,
-          toBlock,
-        });
+  try {
+    const buyLogs = await client.getLogs({
+      address: FACTORY_ADDRESS,
+      event: buyEvent,
+      fromBlock,
+      toBlock,
+    });
 
-        for (const log of buyLogs) {
-          await handleBuy(log, tokenAddress);
-        }
-
-        const sellLogs = await client.getLogs({
-          address: tokenAddress,
-          event: sellEvent,
-          fromBlock,
-          toBlock,
-        });
-
-        for (const log of sellLogs) {
-          await handleSell(log, tokenAddress);
-        }
-      } catch (e) {
-        console.error(`Error fetching logs for ${tokenAddress}:`, e);
+    for (const log of buyLogs) {
+      const args = log.args as any;
+      if (args?.token) {
+        activeTokens.add(args.token as `0x${string}`);
+        await handleBuy(log, args.token as `0x${string}`);
       }
     }
+
+    const sellLogs = await client.getLogs({
+      address: FACTORY_ADDRESS,
+      event: sellEvent,
+      fromBlock,
+      toBlock,
+    });
+
+    for (const log of sellLogs) {
+      const args = log.args as any;
+      if (args?.token) {
+        await handleSell(log, args.token as `0x${string}`);
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching V2 swap logs:', e);
   }
 
   // Update last processed block

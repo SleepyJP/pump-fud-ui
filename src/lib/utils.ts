@@ -52,13 +52,13 @@ export function formatTimeAgo(timestamp: number | bigint): string {
 
 export function getTierColor(tier: number): string {
   const colors: Record<number, string> = {
-    1: '#00FF00',
+    1: '#d6ffe0',
     2: '#00CCFF',
     3: '#FF00FF',
     4: '#FFD700',
     5: '#FF0000',
   };
-  return colors[tier] || '#FFFFFF';
+  return colors[tier] || '#ffffff';
 }
 
 export function getTierName(tier: number): string {

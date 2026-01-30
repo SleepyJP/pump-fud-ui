@@ -182,14 +182,14 @@ describe('TokenImageInfo', () => {
   describe('Styling', () => {
     it('applies neon green border to image container', () => {
       const { container } = render(<TokenImageInfo {...mockProps} />);
-      const imageContainer = container.querySelector('.border-\\[\\#39ff14\\]\\/50');
+      const imageContainer = container.querySelector('.border-\\[\\#d6ffe0\\]\\/50');
       expect(imageContainer).toBeInTheDocument();
     });
 
     it('applies neon green color to token name', () => {
       render(<TokenImageInfo {...mockProps} />);
       const nameElement = screen.getByText(mockProps.name);
-      expect(nameElement).toHaveClass('text-[#39ff14]');
+      expect(nameElement).toHaveClass('text-[#d6ffe0]');
     });
 
     it('applies gray color to symbol', () => {

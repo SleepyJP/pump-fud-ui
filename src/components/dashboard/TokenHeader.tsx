@@ -68,7 +68,7 @@ export function TokenHeader({
           <h1 className="text-2xl font-display font-bold truncate">
             {tokenName && tokenName.includes('.') ? (
               <>
-                <span className="text-fud-green" style={{ textShadow: '0 0 10px #00ff88' }}>
+                <span className="text-fud-green" style={{ textShadow: '0 0 10px #d6ffe0' }}>
                   {tokenName.split('.')[0]}
                 </span>
                 <span className="text-white" style={{ textShadow: '0 0 10px #ffffff' }}>

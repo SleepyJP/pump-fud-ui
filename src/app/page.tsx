@@ -49,7 +49,7 @@ export default function HomePage() {
       {isAdmin && (
         <div className="fixed bottom-28 right-4 z-50">
           <Link href="/settings">
-            <Button variant="primary" className="gap-2 shadow-lg shadow-[#39ff14]/30 animate-pulse">
+            <Button variant="primary" className="gap-2 shadow-lg shadow-[#d6ffe0]/30 animate-pulse">
               <Settings size={16} />
               Admin Settings
             </Button>

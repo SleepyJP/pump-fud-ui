@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { usePublicClient, useBlockNumber } from 'wagmi';
 import { parseAbiItem, formatUnits } from 'viem';
-import { TrendingUp, TrendingDown, RefreshCw, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, RefreshCw, Zap, ChevronDown } from 'lucide-react';
 
 interface ChartPanelProps {
   tokenAddress?: `0x${string}`;
@@ -25,10 +25,29 @@ interface CandleData {
   close: number;
   volume: number;
   trades: number;
+  buyVolume: number;
+  sellVolume: number;
+  buyCount: number;
+  sellCount: number;
 }
+
+// V3: Tokens emit their own events, not the factory
+// TokenBought(buyer, plsSpent, tokensBought, referrer)
+// TokenSold(seller, tokensSold, plsReceived)
 
 // BEAST MODE TIMEFRAMES - including seconds for snipers
 type TimeFrame = '5S' | '15S' | '1M' | '5M' | '15M' | '1H' | '4H' | '1D';
+
+// Chart types like TradingView
+type ChartType = 'candles' | 'line' | 'area' | 'bars' | 'hollow';
+
+const CHART_TYPE_LABELS: Record<ChartType, string> = {
+  candles: '🕯️ Candles',
+  hollow: '🕯️ Hollow',
+  bars: '📊 Bars',
+  line: '📈 Line',
+  area: '📉 Area',
+};
 
 const TIMEFRAME_SECONDS: Record<TimeFrame, number> = {
   '5S': 5,
@@ -52,6 +71,8 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
   const lastFetchBlockRef = useRef<bigint>(BigInt(0));
 
   const [timeframe, setTimeframe] = useState<TimeFrame>('1M');
+  const [chartType, setChartType] = useState<ChartType>('candles');
+  const [showChartTypeMenu, setShowChartTypeMenu] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [trades, setTrades] = useState<TradeData[]>([]);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
@@ -59,6 +80,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [tradeCount, setTradeCount] = useState(0);
   const [chartError, setChartError] = useState<string | null>(null);
+  const [chartReady, setChartReady] = useState(false); // STATE triggers re-render when chart ready
 
   const publicClient = usePublicClient();
   const { data: blockNumber } = useBlockNumber({ watch: true });
@@ -74,6 +96,9 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
     setIsLoading(true);
 
     try {
+      // V3: Events emitted FROM THE TOKEN ITSELF, not factory
+      // TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address indexed referrer)
+      // TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)
       const buyEvent = parseAbiItem('event TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address indexed referrer)');
       const sellEvent = parseAbiItem('event TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)');
 
@@ -81,6 +106,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       // BEAST: Go back 100k blocks (~4 days on PulseChain) for full history
       const fromBlock = currentBlock - BigInt(100000);
 
+      // Query TOKEN CONTRACT directly for its events
       const [buyLogs, sellLogs] = await Promise.all([
         publicClient.getLogs({
           address: tokenAddress,
@@ -138,7 +164,8 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         const timestamp = blockTimestamps[log.blockNumber?.toString() ?? '0'] || Math.floor(Date.now() / 1000);
 
         if (log.type === 'buy') {
-          const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint };
+          // V3: { buyer, plsSpent, tokensBought, referrer }
+          const args = log.args as { buyer: `0x${string}`; plsSpent: bigint; tokensBought: bigint; referrer: `0x${string}` };
           if (args?.plsSpent && args?.tokensBought && args.plsSpent > BigInt(0) && args.tokensBought > BigInt(0)) {
             runningPlsReserve += args.plsSpent;
             runningTokenSupply -= args.tokensBought;
@@ -159,6 +186,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             }
           }
         } else {
+          // V3: { seller, tokensSold, plsReceived }
           const args = log.args as { seller: `0x${string}`; tokensSold: bigint; plsReceived: bigint };
           if (args?.tokensSold && args?.plsReceived && args.tokensSold > BigInt(0) && args.plsReceived > BigInt(0)) {
             runningPlsReserve -= args.plsReceived;
@@ -191,6 +219,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
       if (!isMountedRef.current) return;
 
+      console.log('[BeastChart] 📊 Fetched', tradeData.length, 'trades, prices:', tradeData.slice(0, 3).map(t => t.price));
       setTrades(tradeData);
       setTradeCount(tradeData.length);
       setLastUpdate(new Date());
@@ -213,7 +242,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
     }
   }, [tokenAddress, publicClient, blockNumber]);
 
-  // Convert trades to candles with trade count
+  // Convert trades to candles with buy/sell tracking
   const tradesToCandles = useCallback((tradeData: TradeData[], tf: TimeFrame): CandleData[] => {
     if (tradeData.length === 0) return [];
 
@@ -232,6 +261,10 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           close: trade.price,
           volume: trade.volume,
           trades: 1,
+          buyVolume: trade.isBuy ? trade.volume : 0,
+          sellVolume: trade.isBuy ? 0 : trade.volume,
+          buyCount: trade.isBuy ? 1 : 0,
+          sellCount: trade.isBuy ? 0 : 1,
         });
       } else {
         const candle = candleMap.get(candleTime)!;
@@ -240,6 +273,13 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         candle.close = trade.price;
         candle.volume += trade.volume;
         candle.trades += 1;
+        if (trade.isBuy) {
+          candle.buyVolume += trade.volume;
+          candle.buyCount += 1;
+        } else {
+          candle.sellVolume += trade.volume;
+          candle.sellCount += 1;
+        }
       }
     }
 
@@ -296,43 +336,42 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             fontFamily: "'JetBrains Mono', monospace",
           },
           grid: {
-            vertLines: { color: 'rgba(0, 255, 136, 0.05)', style: LineStyle.Dotted },
-            horzLines: { color: 'rgba(0, 255, 136, 0.05)', style: LineStyle.Dotted },
+            vertLines: { color: 'rgba(214, 255, 224, 0.05)', style: LineStyle.Dotted },
+            horzLines: { color: 'rgba(214, 255, 224, 0.05)', style: LineStyle.Dotted },
           },
           crosshair: {
             mode: CrosshairMode.Normal,
-            vertLine: { color: 'rgba(0, 255, 136, 0.5)', labelBackgroundColor: '#00ff88' },
-            horzLine: { color: 'rgba(0, 255, 136, 0.5)', labelBackgroundColor: '#00ff88' },
+            vertLine: { color: 'rgba(214, 255, 224, 0.5)', labelBackgroundColor: '#d6ffe0' },
+            horzLine: { color: 'rgba(214, 255, 224, 0.5)', labelBackgroundColor: '#d6ffe0' },
           },
           rightPriceScale: {
-            borderColor: 'rgba(0, 255, 136, 0.2)',
+            borderColor: 'rgba(214, 255, 224, 0.2)',
             scaleMargins: { top: 0.1, bottom: 0.2 },
           },
           timeScale: {
-            borderColor: 'rgba(0, 255, 136, 0.2)',
+            borderColor: 'rgba(214, 255, 224, 0.2)',
             timeVisible: true,
             secondsVisible: true, // BEAST: Show seconds for precision
           },
           handleScroll: { vertTouchDrag: false },
         });
 
-        // Create series
+        chartRef.current = chartInstance;
+
+        // Create initial candlestick series RIGHT HERE - no async bullshit
         const candleSeries = chartInstance.addSeries(CandlestickSeries, {
-          upColor: '#00ff88',
+          upColor: '#d6ffe0',
           downColor: '#ef4444',
-          borderUpColor: '#00ff88',
+          borderUpColor: '#d6ffe0',
           borderDownColor: '#ef4444',
-          wickUpColor: '#00ff88',
+          wickUpColor: '#d6ffe0',
           wickDownColor: '#ef4444',
         });
-
-        // Initialize candle series with empty data
-        candleSeries.setData([]);
-
-        chartRef.current = chartInstance;
         candleSeriesRef.current = candleSeries;
-        volumeSeriesRef.current = null; // Disabled - causing crash
+        volumeSeriesRef.current = null;
         isChartReadyRef.current = true;
+        console.log('[BeastChart] ✅ Chart + Series initialized, container:', width, 'x', height);
+        setChartReady(true); // Now chart AND series are both ready
 
         // Safe ResizeObserver
         resizeObserverRef.current = new ResizeObserver((entries) => {
@@ -363,6 +402,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
     return () => {
       mounted = false;
       isChartReadyRef.current = false;
+      setChartReady(false);
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
@@ -378,13 +418,105 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
     };
   }, []);
 
-  // Update chart data when trades or timeframe change
+  // Track if this is the first chartType effect run (skip it - series already created in init)
+  const initialChartTypeRef = useRef(true);
+
+  // Create/update series when chart type changes (NOT on initial mount)
   useEffect(() => {
-    if (!isChartReadyRef.current || !candleSeriesRef.current) return;
+    if (!chartReady || !chartRef.current) return;
+
+    // Skip initial run - series was already created in chart init
+    if (initialChartTypeRef.current) {
+      initialChartTypeRef.current = false;
+      return;
+    }
+
+    const createSeries = async () => {
+      const lwc = await import('lightweight-charts');
+      const { CandlestickSeries, LineSeries, AreaSeries, BarSeries } = lwc;
+
+      // Remove existing series
+      if (candleSeriesRef.current) {
+        try {
+          chartRef.current.removeSeries(candleSeriesRef.current);
+        } catch (e) {
+          // Ignore
+        }
+        candleSeriesRef.current = null;
+      }
+
+      // Create new series based on type
+      let newSeries;
+      switch (chartType) {
+        case 'candles':
+          newSeries = chartRef.current.addSeries(CandlestickSeries, {
+            upColor: '#d6ffe0',
+            downColor: '#ef4444',
+            borderUpColor: '#d6ffe0',
+            borderDownColor: '#ef4444',
+            wickUpColor: '#d6ffe0',
+            wickDownColor: '#ef4444',
+          });
+          break;
+        case 'hollow':
+          newSeries = chartRef.current.addSeries(CandlestickSeries, {
+            upColor: 'transparent',
+            downColor: 'transparent',
+            borderUpColor: '#d6ffe0',
+            borderDownColor: '#ef4444',
+            wickUpColor: '#d6ffe0',
+            wickDownColor: '#ef4444',
+          });
+          break;
+        case 'bars':
+          newSeries = chartRef.current.addSeries(BarSeries, {
+            upColor: '#d6ffe0',
+            downColor: '#ef4444',
+          });
+          break;
+        case 'line':
+          newSeries = chartRef.current.addSeries(LineSeries, {
+            color: '#d6ffe0',
+            lineWidth: 2,
+          });
+          break;
+        case 'area':
+          newSeries = chartRef.current.addSeries(AreaSeries, {
+            lineColor: '#d6ffe0',
+            topColor: 'rgba(214, 255, 224, 0.4)',
+            bottomColor: 'rgba(214, 255, 224, 0.0)',
+            lineWidth: 2,
+          });
+          break;
+        default:
+          newSeries = chartRef.current.addSeries(CandlestickSeries, {
+            upColor: '#d6ffe0',
+            downColor: '#ef4444',
+            borderUpColor: '#d6ffe0',
+            borderDownColor: '#ef4444',
+            wickUpColor: '#d6ffe0',
+            wickDownColor: '#ef4444',
+          });
+      }
+
+      candleSeriesRef.current = newSeries;
+      // Force data update
+      setTradeCount(prev => prev); // Trigger re-render
+    };
+
+    createSeries();
+  }, [chartType, chartReady]);
+
+  // Update chart data when trades or timeframe change
+  // COLOR BY BUY/SELL DOMINANCE: Green = more buys, Red = more sells
+  useEffect(() => {
+    console.log('[BeastChart] 🔄 Data update effect - chartReady:', chartReady, 'series:', !!candleSeriesRef.current, 'trades:', trades.length);
+    if (!chartReady || !candleSeriesRef.current) return;
     if (trades.length === 0) return;
 
     try {
       const candles = tradesToCandles(trades, timeframe);
+      console.log('[BeastChart] 🕯️ Generated', candles.length, 'candles for timeframe', timeframe);
 
       // Filter valid candles
       const validCandles = candles.filter(c =>
@@ -396,22 +528,42 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       );
 
       if (validCandles.length > 0) {
-        candleSeriesRef.current.setData(
-          validCandles.map((c) => ({
-            time: c.time,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close,
-          }))
-        );
+        // Format data based on chart type
+        if (chartType === 'line' || chartType === 'area') {
+          // Line/Area only need time + value (close price)
+          candleSeriesRef.current.setData(
+            validCandles.map((c) => ({
+              time: c.time,
+              value: c.close,
+            }))
+          );
+        } else {
+          // Candles/Bars/Hollow need OHLC
+          candleSeriesRef.current.setData(
+            validCandles.map((c) => {
+              const isBuyDominant = c.buyVolume >= c.sellVolume;
+              const color = isBuyDominant ? '#d6ffe0' : '#ef4444';
+
+              return {
+                time: c.time,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+                color: color,
+                borderColor: color,
+                wickColor: color,
+              };
+            })
+          );
+        }
 
         chartRef.current?.timeScale().fitContent();
       }
     } catch (err) {
       console.error('[BeastChart] Data update failed:', err);
     }
-  }, [trades, timeframe, tradesToCandles]);
+  }, [trades, timeframe, tradesToCandles, chartReady, chartType]);
 
   // Initial fetch
   useEffect(() => {
@@ -493,21 +645,53 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         )}
       </div>
 
-      {/* BEAST Timeframe Buttons */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-fud-green/10 bg-dark-secondary/30">
-        {(['5S', '15S', '1M', '5M', '15M', '1H', '4H', '1D'] as TimeFrame[]).map((tf) => (
+      {/* BEAST Timeframe + Chart Type */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-fud-green/10 bg-dark-secondary/30">
+        {/* Timeframe Buttons */}
+        <div className="flex items-center gap-1">
+          {(['5S', '15S', '1M', '5M', '15M', '1H', '4H', '1D'] as TimeFrame[]).map((tf) => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-2 py-1 text-[10px] font-mono rounded transition-all ${
+                timeframe === tf
+                  ? 'text-black bg-fud-green font-bold shadow-lg shadow-fud-green/30'
+                  : 'text-text-muted hover:text-fud-green hover:bg-fud-green/10'
+              }`}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+
+        {/* Chart Type Dropdown */}
+        <div className="relative">
           <button
-            key={tf}
-            onClick={() => setTimeframe(tf)}
-            className={`px-2 py-1 text-[10px] font-mono rounded transition-all ${
-              timeframe === tf
-                ? 'text-black bg-fud-green font-bold shadow-lg shadow-fud-green/30'
-                : 'text-text-muted hover:text-fud-green hover:bg-fud-green/10'
-            }`}
+            onClick={() => setShowChartTypeMenu(!showChartTypeMenu)}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded bg-dark-tertiary hover:bg-fud-green/10 text-text-muted hover:text-fud-green transition-all"
           >
-            {tf}
+            {CHART_TYPE_LABELS[chartType]}
+            <ChevronDown size={10} />
           </button>
-        ))}
+          {showChartTypeMenu && (
+            <div className="absolute right-0 top-full mt-1 z-50 bg-dark-secondary border border-fud-green/20 rounded shadow-lg min-w-[120px]">
+              {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    setChartType(type);
+                    setShowChartTypeMenu(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-[10px] font-mono hover:bg-fud-green/10 transition-all ${
+                    chartType === type ? 'text-fud-green bg-fud-green/5' : 'text-text-muted'
+                  }`}
+                >
+                  {CHART_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Chart Area */}

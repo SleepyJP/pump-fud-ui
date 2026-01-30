@@ -94,23 +94,25 @@ async function handleTokenDelisted(log) {
         console.error('Error handling TokenDelisted:', e);
     }
 }
-// Process Buy event
+// Process Buy event (V2 format)
 async function handleBuy(log, tokenAddress) {
     try {
-        const decoded = (0, viem_1.decodeEventLog)({
-            abi: config_1.TOKEN_ABI,
-            data: log.data,
-            topics: log.topics,
-        });
-        const { buyer, plsIn, tokensOut, fee } = decoded.args;
+        // V2: { token, buyer, plsIn, tokensOut, referrer }
+        const args = log.args;
+        const buyer = args.buyer;
+        const plsIn = args.plsIn;
+        const tokensOut = args.tokensOut;
+        const eventReferrer = args.referrer;
         const fees = (0, config_1.calculateBuyFees)(plsIn);
-        // Check if buyer has a referrer
-        const referrer = (0, database_1.getReferrer)(buyer);
+        // Check referrer from event or database
+        const referrer = eventReferrer && eventReferrer !== '0x0000000000000000000000000000000000000000'
+            ? eventReferrer
+            : (0, database_1.getReferrer)(buyer);
         let referrerFee = 0n;
         if (referrer) {
             referrerFee = (0, config_1.calculateReferralFee)(fees.treasuryFee);
         }
-        console.log(`💰 Buy: ${buyer} bought ${tokensOut} tokens for ${plsIn} PLS (fee: ${fee})`);
+        console.log(`💰 Buy: ${buyer} bought ${tokensOut} tokens for ${plsIn} PLS on ${tokenAddress}`);
         (0, database_1.recordSwap)({
             txHash: log.transactionHash,
             blockNumber: Number(log.blockNumber),
@@ -120,7 +122,7 @@ async function handleBuy(log, tokenAddress) {
             isBuy: true,
             amountIn: plsIn,
             amountOut: tokensOut,
-            feeAmount: fee,
+            feeAmount: fees.totalFee,
             userFee: fees.userFee,
             treasuryFee: fees.treasuryFee - referrerFee,
             referrerAddress: referrer || undefined,
@@ -131,23 +133,25 @@ async function handleBuy(log, tokenAddress) {
         console.error('Error handling Buy:', e);
     }
 }
-// Process Sell event
+// Process Sell event (V2 format)
 async function handleSell(log, tokenAddress) {
     try {
-        const decoded = (0, viem_1.decodeEventLog)({
-            abi: config_1.TOKEN_ABI,
-            data: log.data,
-            topics: log.topics,
-        });
-        const { seller, tokensIn, plsOut, fee } = decoded.args;
+        // V2: { token, seller, tokensIn, plsOut, referrer }
+        const args = log.args;
+        const seller = args.seller;
+        const tokensIn = args.tokensIn;
+        const plsOut = args.plsOut;
+        const eventReferrer = args.referrer;
         const fees = (0, config_1.calculateSellFees)(plsOut);
-        // Check if seller has a referrer
-        const referrer = (0, database_1.getReferrer)(seller);
+        // Check referrer from event or database
+        const referrer = eventReferrer && eventReferrer !== '0x0000000000000000000000000000000000000000'
+            ? eventReferrer
+            : (0, database_1.getReferrer)(seller);
         let referrerFee = 0n;
         if (referrer) {
             referrerFee = (0, config_1.calculateReferralFee)(fees.treasuryFee);
         }
-        console.log(`💸 Sell: ${seller} sold ${tokensIn} tokens for ${plsOut} PLS (fee: ${fee})`);
+        console.log(`💸 Sell: ${seller} sold ${tokensIn} tokens for ${plsOut} PLS on ${tokenAddress}`);
         (0, database_1.recordSwap)({
             txHash: log.transactionHash,
             blockNumber: Number(log.blockNumber),
@@ -157,7 +161,7 @@ async function handleSell(log, tokenAddress) {
             isBuy: false,
             amountIn: tokensIn,
             amountOut: plsOut,
-            feeAmount: fee,
+            feeAmount: fees.totalFee,
             userFee: fees.userFee,
             treasuryFee: fees.treasuryFee - referrerFee,
             referrerAddress: referrer || undefined,
@@ -190,35 +194,38 @@ async function processBlockRange(fromBlock, toBlock) {
             await handleTokenDelisted(log);
         }
     }
-    // Get swap events from active tokens
-    if (activeTokens.size > 0) {
-        const buyEvent = (0, viem_1.parseAbiItem)('event Buy(address indexed buyer, uint256 plsIn, uint256 tokensOut, uint256 fee)');
-        const sellEvent = (0, viem_1.parseAbiItem)('event Sell(address indexed seller, uint256 tokensIn, uint256 plsOut, uint256 fee)');
-        for (const tokenAddress of activeTokens) {
-            try {
-                const buyLogs = await client.getLogs({
-                    address: tokenAddress,
-                    event: buyEvent,
-                    fromBlock,
-                    toBlock,
-                });
-                for (const log of buyLogs) {
-                    await handleBuy(log, tokenAddress);
-                }
-                const sellLogs = await client.getLogs({
-                    address: tokenAddress,
-                    event: sellEvent,
-                    fromBlock,
-                    toBlock,
-                });
-                for (const log of sellLogs) {
-                    await handleSell(log, tokenAddress);
-                }
-            }
-            catch (e) {
-                console.error(`Error fetching logs for ${tokenAddress}:`, e);
+    // V2: Get swap events from FACTORY (not individual tokens)
+    const buyEvent = (0, viem_1.parseAbiItem)('event TokenBought(address indexed token, address indexed buyer, uint256 plsIn, uint256 tokensOut, address referrer)');
+    const sellEvent = (0, viem_1.parseAbiItem)('event TokenSold(address indexed token, address indexed seller, uint256 tokensIn, uint256 plsOut, address referrer)');
+    try {
+        const buyLogs = await client.getLogs({
+            address: FACTORY_ADDRESS,
+            event: buyEvent,
+            fromBlock,
+            toBlock,
+        });
+        for (const log of buyLogs) {
+            const args = log.args;
+            if (args?.token) {
+                activeTokens.add(args.token);
+                await handleBuy(log, args.token);
             }
         }
+        const sellLogs = await client.getLogs({
+            address: FACTORY_ADDRESS,
+            event: sellEvent,
+            fromBlock,
+            toBlock,
+        });
+        for (const log of sellLogs) {
+            const args = log.args;
+            if (args?.token) {
+                await handleSell(log, args.token);
+            }
+        }
+    }
+    catch (e) {
+        console.error('Error fetching V2 swap logs:', e);
     }
     // Update last processed block
     (0, database_1.setIndexerState)('lastProcessedBlock', toBlock.toString());

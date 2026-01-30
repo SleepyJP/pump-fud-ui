@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface UserProfile {
   displayName: string;
@@ -16,6 +16,9 @@ export interface UserProfile {
 interface ProfileState {
   // Profiles keyed by wallet address (lowercase)
   profiles: Record<string, UserProfile>;
+  // Hydration flag
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
 
   // Get profile for address
   getProfile: (address: string) => UserProfile | null;
@@ -39,6 +42,8 @@ export const useProfileStore = create<ProfileState>()(
   persist(
     (set, get) => ({
       profiles: {},
+      _hasHydrated: false,
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
 
       getProfile: (address: string) => {
         const key = address.toLowerCase();
@@ -47,8 +52,9 @@ export const useProfileStore = create<ProfileState>()(
 
       setProfile: (address: string, profile: Partial<UserProfile>) => {
         const key = address.toLowerCase();
-        set((state) => ({
-          profiles: {
+        console.log('[ProfileStore] Saving profile for:', key, profile);
+        set((state) => {
+          const newProfiles = {
             ...state.profiles,
             [key]: {
               ...DEFAULT_PROFILE,
@@ -56,8 +62,10 @@ export const useProfileStore = create<ProfileState>()(
               ...profile,
               updatedAt: Date.now(),
             },
-          },
-        }));
+          };
+          console.log('[ProfileStore] New profiles state:', newProfiles);
+          return { profiles: newProfiles };
+        });
       },
 
       clearProfile: (address: string) => {
@@ -70,6 +78,18 @@ export const useProfileStore = create<ProfileState>()(
     }),
     {
       name: 'pump-fud-profiles',
+      storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        console.log('[ProfileStore] Hydrated from localStorage:', state?.profiles);
+        state?.setHasHydrated(true);
+      },
+      // Ensure version for migrations
+      version: 1,
     }
   )
 );
+
+// Hook to wait for hydration
+export const useProfileHydration = () => {
+  return useProfileStore((state) => state._hasHydrated);
+};

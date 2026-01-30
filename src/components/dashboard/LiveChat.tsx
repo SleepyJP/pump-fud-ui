@@ -129,17 +129,17 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-black/40 to-black/60 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#39ff14]/20">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[#d6ffe0]/20">
         <div className="flex items-center gap-2">
-          <MessageCircle size={16} className="text-[#39ff14]" />
-          <span className="font-mono text-sm text-[#39ff14] font-bold">LIVE CHAT</span>
+          <MessageCircle size={16} className="text-[#d6ffe0]" />
+          <span className="font-mono text-sm text-[#d6ffe0] font-bold">LIVE CHAT</span>
         </div>
         <div className="flex items-center gap-2">
           {/* Voice Chat Toggle */}
           <button
             onClick={() => setShowVoicePanel(!showVoicePanel)}
             className={`p-1.5 rounded transition-all ${
-              showVoicePanel ? 'bg-[#39ff14]/20 text-[#39ff14]' : 'text-gray-500 hover:text-[#39ff14]'
+              showVoicePanel ? 'bg-[#d6ffe0]/20 text-[#d6ffe0]' : 'text-gray-500 hover:text-[#d6ffe0]'
             }`}
             title="Voice Chat"
           >
@@ -153,7 +153,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
 
       {/* Voice Panel (collapsible) */}
       {showVoicePanel && (
-        <div className="px-3 py-2 border-b border-[#39ff14]/10 bg-black/40">
+        <div className="px-3 py-2 border-b border-[#d6ffe0]/10 bg-black/40">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono text-gray-400">Voice Chat</span>
             <div className="flex items-center gap-2">
@@ -162,7 +162,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
                 disabled={!hasTokens}
                 className={`p-2 rounded-full transition-all ${
                   isMicActive
-                    ? 'bg-[#39ff14] text-black animate-pulse'
+                    ? 'bg-[#d6ffe0] text-black animate-pulse'
                     : hasTokens
                     ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                     : 'bg-gray-900 text-gray-600 cursor-not-allowed'
@@ -184,7 +184,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 scrollbar-thin scrollbar-thumb-[#39ff14]/20 scrollbar-track-transparent">
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 scrollbar-thin scrollbar-thumb-[#d6ffe0]/20 scrollbar-track-transparent">
         {!tokenAddress ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
@@ -247,7 +247,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
 
       {/* Input Area */}
       {tokenAddress && isConnected && (
-        <div className="p-3 border-t border-[#39ff14]/10 space-y-2">
+        <div className="p-3 border-t border-[#d6ffe0]/10 space-y-2">
           {/* Super Chat Toggle */}
           <button
             onClick={() => setIsSuperChatMode(!isSuperChatMode)}
@@ -295,7 +295,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
               placeholder={isSuperChatMode ? 'Super chat message...' : 'Type a message...'}
               maxLength={500}
-              className="flex-1 px-3 py-2 bg-black/60 border border-[#39ff14]/20 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#39ff14]/50 transition-colors"
+              className="flex-1 px-3 py-2 bg-black/60 border border-[#d6ffe0]/20 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#d6ffe0]/50 transition-colors"
             />
             <button
               onClick={handleSend}
@@ -303,7 +303,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
               className={`px-4 py-2 rounded-lg font-mono text-sm font-bold transition-all ${
                 isSuperChatMode
                   ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:from-yellow-400 hover:to-orange-400'
-                  : 'bg-[#39ff14] text-black hover:bg-[#39ff14]/80'
+                  : 'bg-[#d6ffe0] text-black hover:bg-[#d6ffe0]/80'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <Send size={16} />
@@ -321,7 +321,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
 
       {/* Not connected state */}
       {tokenAddress && !isConnected && (
-        <div className="p-3 border-t border-[#39ff14]/10">
+        <div className="p-3 border-t border-[#d6ffe0]/10">
           <p className="text-xs font-mono text-gray-500 text-center">
             Connect wallet to chat
           </p>

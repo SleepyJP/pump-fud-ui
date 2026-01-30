@@ -146,7 +146,7 @@ export function TokenInfoCard({ tokenAddress }: TokenInfoCardProps) {
       {/* Price */}
       <div className="flex justify-between items-center py-2 border-b border-gray-800/50">
         <span className="text-gray-400 text-sm">Price</span>
-        <span className="text-[#39ff14] font-mono font-bold">{formatPrice(currentPrice as bigint)} PLS</span>
+        <span className="text-[#d6ffe0] font-mono font-bold">{formatPrice(currentPrice as bigint)} PLS</span>
       </div>
 
       {/* Reserve */}
@@ -163,11 +163,11 @@ export function TokenInfoCard({ tokenAddress }: TokenInfoCardProps) {
 
       {/* Buys / Sells */}
       <div className="flex justify-between items-center py-2 border-b border-gray-800/50">
-        <div className="flex items-center gap-1 text-[#39ff14]">
+        <div className="flex items-center gap-1 text-[#d6ffe0]">
           <TrendingUp size={12} />
           <span className="text-sm">BUYS</span>
         </div>
-        <span className="text-[#39ff14] font-mono font-bold">{buyCount}</span>
+        <span className="text-[#d6ffe0] font-mono font-bold">{buyCount}</span>
       </div>
 
       <div className="flex justify-between items-center py-2 border-b border-gray-800/50">
@@ -181,7 +181,7 @@ export function TokenInfoCard({ tokenAddress }: TokenInfoCardProps) {
       {/* Status */}
       <div className="flex justify-between items-center py-2 border-b border-gray-800/50">
         <span className="text-gray-400 text-sm">Status</span>
-        <span className={`font-mono font-bold ${graduated ? 'text-[#39ff14]' : 'text-orange-400'}`}>
+        <span className={`font-mono font-bold ${graduated ? 'text-[#d6ffe0]' : 'text-orange-400'}`}>
           {graduated ? 'GRADUATED' : 'BONDING'}
         </span>
       </div>
@@ -191,11 +191,11 @@ export function TokenInfoCard({ tokenAddress }: TokenInfoCardProps) {
         <div className="mt-auto pt-3">
           <div className="flex justify-between text-xs mb-1">
             <span className="text-gray-500">Bonding Progress</span>
-            <span className="text-[#39ff14]">{bondingProgress.toFixed(4)}%</span>
+            <span className="text-[#d6ffe0]">{bondingProgress.toFixed(4)}%</span>
           </div>
           <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
             <div
-              className="h-full bg-[#39ff14] transition-all"
+              className="h-full bg-[#d6ffe0] transition-all"
               style={{ width: `${Math.max(0.5, bondingProgress)}%` }}
             />
           </div>

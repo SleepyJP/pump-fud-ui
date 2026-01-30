@@ -169,7 +169,7 @@ describe('TokenDashboard', () => {
       const { container } = render(<TokenDashboard {...mockProps} />);
 
       await waitFor(() => {
-        const panels = container.querySelectorAll('.border-\\[\\#39ff14\\]\\/30');
+        const panels = container.querySelectorAll('.border-\\[\\#d6ffe0\\]\\/30');
         expect(panels.length).toBeGreaterThan(0);
       });
     });

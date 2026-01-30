@@ -1,17 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useReadContract, useReadContracts } from 'wagmi';
-import { User } from 'lucide-react';
+import { User, Zap } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS, CONSTANTS } from '@/config/wagmi';
 import { formatAddress, formatPLS } from '@/lib/utils';
 import { useSiteSettings } from '@/stores/siteSettingsStore';
+import { useBumpTracking } from '@/hooks/useBumpTracking';
 import type { Token } from '@/types';
 
-type FilterType = 'live' | 'rising' | 'new' | 'graduated';
+type FilterType = 'live' | 'rising' | 'new' | 'graduated' | 'bumped';
 
 interface LiveTokensListProps {
   limit?: number;
@@ -26,6 +27,7 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
 
   const filterTitles: Record<FilterType, string> = {
     live: 'Live Tokens',
+    bumped: '🔥 Recently Bumped',
     rising: 'Rising Tokens',
     new: 'New Tokens',
     graduated: 'Graduated Tokens',
@@ -59,6 +61,13 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
     contracts: tokenDataContracts as any,
     query: { enabled: tokenDataContracts.length > 0 },
   });
+
+  // BUMP TRACKING: Get bump data for all tokens
+  const tokenAddressList = useMemo(
+    () => (tokenAddresses || []) as `0x${string}`[],
+    [tokenAddresses]
+  );
+  const { bumpMap, getTimeSinceBump, wasBumpedRecently } = useBumpTracking(tokenAddressList);
 
   // Process token data
   useEffect(() => {
@@ -110,10 +119,27 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
       (token) => !hiddenTokens.some((hidden) => hidden.toLowerCase() === token.address.toLowerCase())
     );
 
-    // Apply filter
+    // Apply filter with BUMP TRACKING
     switch (filter) {
       case 'live':
-        visibleTokens = visibleTokens.filter((t) => !t.graduated);
+        // Live tokens sorted by most recent bump (activity)
+        visibleTokens = visibleTokens
+          .filter((t) => !t.graduated)
+          .sort((a, b) => {
+            const bumpA = bumpMap[a.address.toLowerCase()]?.lastBumpTime || 0;
+            const bumpB = bumpMap[b.address.toLowerCase()]?.lastBumpTime || 0;
+            return bumpB - bumpA; // Most recent first
+          });
+        break;
+      case 'bumped':
+        // Only tokens bumped in the last 5 minutes
+        visibleTokens = visibleTokens
+          .filter((t) => !t.graduated && (bumpMap[t.address.toLowerCase()]?.lastBumpTime || 0) > 0)
+          .sort((a, b) => {
+            const bumpA = bumpMap[a.address.toLowerCase()]?.lastBumpTime || 0;
+            const bumpB = bumpMap[b.address.toLowerCase()]?.lastBumpTime || 0;
+            return bumpB - bumpA;
+          });
         break;
       case 'graduated':
         visibleTokens = visibleTokens.filter((t) => t.graduated);
@@ -130,7 +156,7 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
 
     setTokens(visibleTokens);
     setIsLoading(false);
-  }, [tokenAddresses, tokenData, hiddenTokens, filter]);
+  }, [tokenAddresses, tokenData, hiddenTokens, filter, bumpMap]);
 
   const getProgressPercent = (reserve: bigint): number => {
     if (!reserve) return 0;
@@ -224,7 +250,7 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                     <h3 className="font-display truncate group-hover:animate-glow">
                       {token.name && token.name.includes('.') ? (
                         <>
-                          <span className="text-fud-green" style={{ textShadow: '0 0 8px #00ff88' }}>
+                          <span className="text-fud-green" style={{ textShadow: '0 0 8px #d6ffe0' }}>
                             {token.name.split('.')[0]}
                           </span>
                           <span className="text-white" style={{ textShadow: '0 0 8px #ffffff' }}>
@@ -241,6 +267,17 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                         GRADUATED
                       </span>
                     )}
+                    {/* BUMP INDICATOR */}
+                    {!token.graduated && wasBumpedRecently(token.address, 30) && (
+                      <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-fud-green/30 text-fud-green text-[10px] font-mono rounded animate-pulse">
+                        <Zap size={10} /> BUMPED
+                      </span>
+                    )}
+                    {!token.graduated && bumpMap[token.address.toLowerCase()]?.isHot && (
+                      <span className="inline-flex items-center gap-1 mt-1 ml-1 px-2 py-0.5 bg-orange-500/30 text-orange-400 text-[10px] font-mono rounded">
+                        🔥 HOT
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -253,9 +290,11 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                     <div className="text-text-secondary">{formatPLS(token.plsReserve)} PLS</div>
                   </div>
                   <div>
-                    <User size={10} className="inline mr-1.5 text-text-muted" />
-                    <span className="text-text-muted">Creator</span>
-                    <div className="text-text-secondary">{formatAddress(token.creator)}</div>
+                    <Zap size={10} className="inline mr-1.5 text-fud-green" />
+                    <span className="text-text-muted">Last Activity</span>
+                    <div className={`${wasBumpedRecently(token.address, 60) ? 'text-fud-green' : 'text-text-secondary'}`}>
+                      {getTimeSinceBump(token.address)}
+                    </div>
                   </div>
                 </div>
 

@@ -74,8 +74,12 @@ const SCALE_MODES: { value: ScaleMode; label: string }[] = [
   { value: 'logarithmic', label: 'Logarithmic' },
 ];
 
+// Settings version - increment to force reset old cached settings
+const SETTINGS_VERSION = 2;
+
 // Default settings - TradingView/DEX Screener style
 const DEFAULT_SETTINGS = {
+  version: SETTINGS_VERSION,
   upColor: '#26a69a', // TradingView default green
   downColor: '#ef5350', // TradingView default red
   chartType: 'candles' as ChartType,
@@ -85,13 +89,23 @@ const DEFAULT_SETTINGS = {
   scaleOnLeft: false,
 };
 
-// Load settings from localStorage
+// Load settings from localStorage - reset if version changed
 const loadChartSettings = () => {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
     const saved = localStorage.getItem('pumpfud-chart-settings');
-    if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
-  } catch {}
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Reset to defaults if version changed or missing
+      if (!parsed.version || parsed.version < SETTINGS_VERSION) {
+        localStorage.removeItem('pumpfud-chart-settings');
+        return DEFAULT_SETTINGS;
+      }
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    }
+  } catch {
+    localStorage.removeItem('pumpfud-chart-settings');
+  }
   return DEFAULT_SETTINGS;
 };
 
@@ -99,7 +113,7 @@ const loadChartSettings = () => {
 const saveChartSettings = (settings: typeof DEFAULT_SETTINGS) => {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem('pumpfud-chart-settings', JSON.stringify(settings));
+    localStorage.setItem('pumpfud-chart-settings', JSON.stringify({ ...settings, version: SETTINGS_VERSION }));
   } catch {}
 };
 

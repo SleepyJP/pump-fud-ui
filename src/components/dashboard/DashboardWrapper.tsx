@@ -54,8 +54,8 @@ export function DashboardWrapper({
       <div ref={containerRef} className="w-full min-h-[600px]">
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-8 h-8 border-2 border-[#39ff14] border-t-transparent rounded-full animate-spin" />
-            <span className="text-[#39ff14] animate-pulse font-mono text-sm">Initializing grid...</span>
+            <div className="w-8 h-8 border-2 border-[#d6ffe0] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[#d6ffe0] animate-pulse font-mono text-sm">Initializing grid...</span>
           </div>
         </div>
       </div>

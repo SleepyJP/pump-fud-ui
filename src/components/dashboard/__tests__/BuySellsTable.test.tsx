@@ -112,7 +112,7 @@ describe('BuySellsTable (TransactionFeed)', () => {
     it('styles BUY text in green', () => {
       render(<TransactionFeed {...mockProps} />);
       const buyText = screen.getByText('BUY');
-      expect(buyText).toHaveClass('text-[#39ff14]');
+      expect(buyText).toHaveClass('text-[#d6ffe0]');
     });
 
     it('styles SELL text in red', () => {
@@ -123,7 +123,7 @@ describe('BuySellsTable (TransactionFeed)', () => {
 
     it('styles BUY row with green background tint', () => {
       const { container } = render(<TransactionFeed {...mockProps} />);
-      const greenBgRows = container.querySelectorAll('.bg-\\[\\#39ff14\\]\\/5');
+      const greenBgRows = container.querySelectorAll('.bg-\\[\\#d6ffe0\\]\\/5');
       expect(greenBgRows.length).toBeGreaterThanOrEqual(0);
     });
 

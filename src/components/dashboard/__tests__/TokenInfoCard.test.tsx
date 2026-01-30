@@ -42,7 +42,7 @@ describe('TokenInfoCard', () => {
 
     it('displays price in neon green', () => {
       const { container } = render(<TokenInfoCard {...mockProps} />);
-      const priceRow = container.querySelector('.text-\\[\\#39ff14\\]');
+      const priceRow = container.querySelector('.text-\\[\\#d6ffe0\\]');
       expect(priceRow).toBeInTheDocument();
     });
 
@@ -73,7 +73,7 @@ describe('TokenInfoCard', () => {
     it('displays BUYS count in green', () => {
       render(<TokenInfoCard {...mockProps} />);
       const buysValue = screen.getByText('42');
-      expect(buysValue).toHaveClass('text-[#39ff14]');
+      expect(buysValue).toHaveClass('text-[#d6ffe0]');
     });
 
     it('displays SELLS count in red', () => {
@@ -103,7 +103,7 @@ describe('TokenInfoCard', () => {
     it('displays GRADUATED in green', () => {
       render(<TokenInfoCard {...mockProps} graduated={true} />);
       const status = screen.getByText('GRADUATED');
-      expect(status).toHaveClass('text-[#39ff14]');
+      expect(status).toHaveClass('text-[#d6ffe0]');
     });
   });
 
@@ -127,7 +127,7 @@ describe('TokenInfoCard', () => {
 
     it('sets correct progress bar width', () => {
       const { container } = render(<TokenInfoCard {...mockProps} />);
-      const progressFill = container.querySelector('.bg-\\[\\#39ff14\\].transition-all');
+      const progressFill = container.querySelector('.bg-\\[\\#d6ffe0\\].transition-all');
       expect(progressFill).toBeInTheDocument();
       // Should be ~75.82% width
       expect(progressFill).toHaveStyle({ width: expect.stringMatching(/\d+%/) });

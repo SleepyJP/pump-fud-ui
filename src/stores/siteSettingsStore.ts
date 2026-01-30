@@ -5,11 +5,7 @@ import type { PanelType } from '@/types';
 // Admin wallet addresses - these wallets can access admin settings
 export const ADMIN_WALLET = '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B'; // Treasury
 export const ADMIN_WALLETS = [
-  '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B', // Treasury
-  '0xdBDA1341890EFCc30734EEC5d5a462a69a29b0B7', // Dev 1
-  '0x4bD4f261e7057fC8eA8127E6CF96e4102cc4C8fB', // Dev 2
-  '0x61D8adC8A10AE0E06B52fE78f0d0264eEdE74799', // Deployer
-  '0x31b8f9a85fa9b9258b5b5f1875dbd863999dca76', // SleepyJ
+  '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B', // Treasury - ONLY admin
 ];
 
 export interface ThemeColors {
@@ -192,7 +188,7 @@ interface SiteSettingsState extends SiteSettings {
 
 const DEFAULT_THEME: ThemeColors = {
   // Primary colors
-  accentPrimary: '#00ff88',
+  accentPrimary: '#d6ffe0',
   accentSecondary: '#8b5cf6',
   accentTertiary: '#f97316',
 
@@ -206,15 +202,15 @@ const DEFAULT_THEME: ThemeColors = {
   textPrimary: '#ffffff',
   textSecondary: '#e5e7eb',
   textMuted: '#9ca3af',
-  textAccent: '#00ff88',
+  textAccent: '#d6ffe0',
 
   // Border colors
   borderPrimary: '#333333',
   borderSecondary: '#444444',
-  borderGlow: 'rgba(0, 255, 136, 0.3)',
+  borderGlow: 'rgba(214, 255, 224, 0.3)',
 
   // Button colors
-  buttonPrimary: '#00ff88',
+  buttonPrimary: '#d6ffe0',
   buttonPrimaryText: '#000000',
   buttonSecondary: '#333333',
   buttonSecondaryText: '#ffffff',
@@ -222,13 +218,13 @@ const DEFAULT_THEME: ThemeColors = {
   buttonDangerText: '#ffffff',
 
   // Status colors
-  success: '#00ff88',
+  success: '#d6ffe0',
   warning: '#f97316',
   error: '#ef4444',
   info: '#3b82f6',
 
   // Effects
-  glowColor: 'rgba(0, 255, 136, 0.5)',
+  glowColor: 'rgba(214, 255, 224, 0.5)',
   shadowColor: 'rgba(0, 0, 0, 0.5)',
 };
 
@@ -272,7 +268,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
     rotationSpeed: 5,
   },
   theme: DEFAULT_THEME,
-  accentColor: '#00ff88',
+  accentColor: '#d6ffe0',
   secondaryAccent: '#8b5cf6',
   savedPatterns: [],
   // Pre-hidden test tokens for clean launch

@@ -1,316 +1,308 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import type { Layout } from 'react-grid-layout';
-import { Lock, Unlock, RotateCcw } from 'lucide-react';
-
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
-
-// Use our manual width measurement wrapper - NOT WidthProvider
-import { DashboardWrapper } from './DashboardWrapper';
-import { DashboardPanel } from './DashboardPanel';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useReadContract } from 'wagmi';
+import { TOKEN_ABI } from '@/config/abis';
+import { CONSTANTS } from '@/config/wagmi';
+import { X, Gift, Flame, Copy, Check, ExternalLink, Twitter, Send, Globe } from 'lucide-react';
 
 // Component imports
 import { TokenImageInfo } from './TokenImageInfo';
-import { MessageBoard } from './MessageBoard';
-import { LiveChat } from './LiveChat';
 import { PriceChart } from './PriceChart';
-import { BuySellsTable } from './BuySellsTable';
-import { SwapWidget } from './SwapWidget';
-import { HoldersList } from './HoldersList';
+import { TradePanel } from './TradePanel';
+import { TransactionFeed } from './TransactionFeed';
+import { LiveChat } from './LiveChat';
+import { MessageBoard } from './MessageBoard';
+import { HoldersPanel } from './HoldersPanel';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LAYOUT SPECIFICATION - UPDATED PER USER REQUEST
+// DEXSCREENER-STYLE LAYOUT - CLEAN AND FUNCTIONAL
 // ═══════════════════════════════════════════════════════════════════════════════
-// ┌─────────────────────┬───────────────────────────────────┬─────────────┐
-// │                     │                                   │             │
-// │   TOKEN IMAGE       │                                   │             │
-// │   (BIG)             │                                   │             │
-// │                     │                                   │   SWAP      │
-// │   + DESCRIPTION     │            CHART                  │   WIDGET    │
-// │   + ALL INFO        │           (HUGE)                  │   (FULL     │
-// │   + SOCIALS         │                                   │   HEIGHT)   │
-// │                     │                                   │             │
-// │                     │                                   │             │
-// ├──────────┬──────────┼───────────────────────────────────┤             │
-// │ MESSAGE  │  LIVE    │       BUYS & SELLS TABLE          │             │
-// │ BOARD    │  CHAT    │                                   │             │
-// │ (small)  │ (small)  │                                   │             │
-// └──────────┴──────────┴───────────────────────────────────┴─────────────┘
+// ┌──────────────┬──────────────────────────────────────┬─────────────────┐
+// │              │                                      │                 │
+// │   TOKEN      │                                      │                 │
+// │   IMAGE      │                                      │     TRADE       │
+// │              │              CHART                   │     PANEL       │
+// ├──────────────┤              (BIG)                   │                 │
+// │ DESCRIPTION  │                                      │                 │
+// ├──────────────┼──────────────────────────────────────┤                 │
+// │ CHAT │ BOARD │        TRANSACTIONS                  │                 │
+// └──────┴───────┴──────────────────────────────────────┴─────────────────┘
 // ═══════════════════════════════════════════════════════════════════════════════
-
-const DEFAULT_LAYOUT: Layout[] = [
-  // LEFT COLUMN - Token image + description (BIG) takes top
-  { i: 'image-info', x: 0, y: 0, w: 6, h: 18, minW: 5, minH: 12, maxW: 8, maxH: 24 },
-  // LEFT BOTTOM - Live chat + Message board split side by side
-  { i: 'live-chat', x: 0, y: 18, w: 3, h: 10, minW: 2, minH: 6, maxW: 6, maxH: 14 },
-  { i: 'message-board', x: 3, y: 18, w: 3, h: 10, minW: 2, minH: 6, maxW: 6, maxH: 14 },
-
-  // CENTER COLUMN - Chart (huge) + Transactions below
-  { i: 'chart', x: 6, y: 0, w: 12, h: 18, minW: 8, minH: 12, maxW: 16, maxH: 24 },
-  { i: 'transactions', x: 6, y: 18, w: 12, h: 10, minW: 6, minH: 6, maxW: 16, maxH: 14 },
-
-  // RIGHT COLUMN - Swap (2/3 height), Holders (1/3 height)
-  { i: 'swap', x: 18, y: 0, w: 6, h: 19, minW: 5, minH: 14, maxW: 8, maxH: 26 },
-  { i: 'holders', x: 18, y: 19, w: 6, h: 9, minW: 4, minH: 6, maxW: 8, maxH: 14 },
-];
-
-const STORAGE_KEY_PREFIX = 'pump-fud-dashboard-layout-';
 
 interface TokenDashboardProps {
   tokenAddress: `0x${string}`;
   tokenName?: string;
   tokenSymbol?: string;
-  imageUri?: string;
-  description?: string;
-  creator?: `0x${string}`;
-  socials?: { twitter?: string; telegram?: string; website?: string };
-  currentPrice?: bigint;
-  totalSupply?: bigint;
-  plsReserve?: bigint;
-  graduated?: boolean;
 }
 
-export function TokenDashboard({
-  tokenAddress,
-  tokenName,
-  tokenSymbol,
-  imageUri,
-  description,
-  creator,
-  socials,
-  currentPrice,
-  totalSupply,
-  plsReserve,
-  graduated,
-}: TokenDashboardProps) {
-  const [isLocked, setIsLocked] = useState(true);
-  const [layouts, setLayouts] = useState<{ [key: string]: Layout[] }>({
-    lg: DEFAULT_LAYOUT,
-    md: DEFAULT_LAYOUT,
-    sm: DEFAULT_LAYOUT,
-    xs: DEFAULT_LAYOUT,
-    xxs: DEFAULT_LAYOUT,
-  });
+export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
   const [mounted, setMounted] = useState(false);
+  const [showBanner, setShowBanner] = useState(true);
+  const [copied, setCopied] = useState(false);
 
-  // Load layout from localStorage on mount
+  // Get token name
+  const { data: name } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'name',
+    query: { enabled: !!tokenAddress },
+  });
+
+  // Get token symbol for display
+  const { data: symbol } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'symbol',
+    query: { enabled: !!tokenAddress },
+  });
+
+  // Get description
+  const { data: descriptionRaw } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'description',
+    query: { enabled: !!tokenAddress },
+  });
+
+  // Get creator
+  const { data: creator } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'creator',
+    query: { enabled: !!tokenAddress },
+  });
+
+  // Get total supply
+  const { data: totalSupply } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'totalSupply',
+    query: { enabled: !!tokenAddress },
+  });
+
+  // Get graduation status
+  const { data: graduated } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'graduated',
+    query: { enabled: !!tokenAddress },
+  });
+
+  // Get PLS reserve for bonding progress
+  const { data: plsReserve } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'plsReserve',
+    query: { enabled: !!tokenAddress },
+  });
+
+  // Bonding progress calculation
+  const GRADUATION_THRESHOLD = CONSTANTS.GRADUATION_THRESHOLD;
+  const bondingProgress = plsReserve
+    ? Math.min(100, Number((plsReserve as bigint) * 100n / GRADUATION_THRESHOLD))
+    : 0;
+
+  const description = useMemo(() => {
+    if (!descriptionRaw) return '';
+    try {
+      const parsed = JSON.parse(descriptionRaw as string);
+      return parsed.description || '';
+    } catch {
+      return descriptionRaw as string;
+    }
+  }, [descriptionRaw]);
+
+  // Parse socials from description
+  const socials = useMemo(() => {
+    if (!descriptionRaw) return null;
+    try {
+      const parsed = JSON.parse(descriptionRaw as string);
+      return parsed.socials || null;
+    } catch {
+      return null;
+    }
+  }, [descriptionRaw]);
+
+  const copyAddress = () => {
+    navigator.clipboard.writeText(tokenAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const formatAddress = (addr: string): string => {
+    return addr.slice(0, 6) + '...' + addr.slice(-4);
+  };
+
   useEffect(() => {
     setMounted(true);
-    const storageKey = `${STORAGE_KEY_PREFIX}${tokenAddress}`;
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Handle both old format (array) and new format (object with breakpoints)
-        if (Array.isArray(parsed) && parsed.length === 8) {
-          setLayouts({
-            lg: parsed,
-            md: parsed,
-            sm: parsed,
-            xs: parsed,
-            xxs: parsed,
-          });
-        } else if (typeof parsed === 'object' && parsed.lg) {
-          setLayouts(parsed);
-        }
-      }
-    } catch (e) {
-      console.error('[TokenDashboard] Failed to load layout:', e);
-    }
-  }, [tokenAddress]);
+  }, []);
 
-  // Handle layout change - receives both current layout and all layouts
-  const handleLayoutChange = useCallback(
-    (currentLayout: Layout[], allLayouts: { [key: string]: Layout[] }) => {
-      setLayouts(allLayouts);
-      if (!isLocked) {
-        const storageKey = `${STORAGE_KEY_PREFIX}${tokenAddress}`;
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(allLayouts));
-        } catch (e) {
-          console.error('[TokenDashboard] Failed to save layout:', e);
-        }
-      }
-    },
-    [tokenAddress, isLocked]
-  );
-
-  // Reset to default layout
-  const handleReset = useCallback(() => {
-    if (confirm('Reset layout to default?')) {
-      const defaultLayouts = {
-        lg: DEFAULT_LAYOUT,
-        md: DEFAULT_LAYOUT,
-        sm: DEFAULT_LAYOUT,
-        xs: DEFAULT_LAYOUT,
-        xxs: DEFAULT_LAYOUT,
-      };
-      setLayouts(defaultLayouts);
-      const storageKey = `${STORAGE_KEY_PREFIX}${tokenAddress}`;
-      localStorage.removeItem(storageKey);
-    }
-  }, [tokenAddress]);
-
-  // Don't render until client-side mounted to avoid SSR hydration issues
   if (!mounted) {
     return (
-      <div className="w-full min-h-[800px]">
-        <div className="flex items-center justify-center h-64">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-[#39ff14]/30 border-t-[#39ff14] rounded-full animate-spin" />
-            <div className="animate-pulse text-[#39ff14] font-mono text-sm">Initializing dashboard...</div>
-          </div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-[#d6ffe0]/30 border-t-[#d6ffe0] rounded-full animate-spin" />
+          <div className="animate-pulse text-[#d6ffe0] font-mono text-sm">Loading...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative w-full">
+    <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* ═══════════════════════════════════════════════════════════════════════ */}
-      {/* TOOLBAR - Lock/Unlock Controls */}
+      {/* FEE SHARING BANNER */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex items-center justify-end gap-2 mb-3 px-4">
-        <button
-          onClick={() => setIsLocked(!isLocked)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm font-bold transition-all border ${
-            isLocked
-              ? 'bg-black/60 border-gray-700 text-gray-400 hover:border-[#39ff14]/50 hover:text-[#39ff14]'
-              : 'bg-[#39ff14] border-[#39ff14] text-black'
-          }`}
-          title={isLocked ? 'Layout Locked - Click to Edit' : 'Layout Unlocked - Drag to Rearrange'}
-        >
-          {isLocked ? <Lock size={14} /> : <Unlock size={14} />}
-          {isLocked ? 'LOCKED' : 'UNLOCKED'}
-        </button>
-
-        {!isLocked && (
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm bg-black/60 border border-orange-500/50 text-orange-400 hover:bg-orange-500/20 transition-all"
-          >
-            <RotateCcw size={14} />
-            Reset
-          </button>
-        )}
-      </div>
-
-      {/* Editing Mode Banner */}
-      {!isLocked && (
-        <div className="bg-[#39ff14]/10 border border-[#39ff14]/30 rounded-lg px-4 py-2 mb-3 mx-4 text-center">
-          <span className="text-[#39ff14] text-sm font-mono">
-            ✏️ Layout Editing Mode — Drag panels by header, resize from edges
+      {showBanner && (
+        <div className="bg-gradient-to-r from-[#d6ffe0]/20 to-purple-500/20 border-b border-[#d6ffe0]/30 px-4 py-2 flex items-center justify-center gap-3">
+          <Gift size={16} className="text-[#d6ffe0]" />
+          <span className="text-sm font-mono text-white">
+            <span className="text-[#d6ffe0] font-bold">Earn 50%</span> of all trading fees — airdropped daily to token holders!
           </span>
+          <button
+            onClick={() => setShowBanner(false)}
+            className="ml-4 text-gray-400 hover:text-white"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════ */}
-      {/* GRID LAYOUT - 24 Columns - Using DashboardWrapper (not WidthProvider) */}
+      {/* MAIN CONTENT - 3 Columns */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
-      <DashboardWrapper
-        layouts={layouts}
-        onLayoutChange={handleLayoutChange}
-        isDraggable={!isLocked}
-        isResizable={!isLocked}
-      >
+      <div className="flex flex-1 min-h-0">
+
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 1: Token Image + Info (LEFT TOP) */}
+        {/* LEFT COLUMN - Image + Description + Chat/Board */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div key="image-info">
-          <DashboardPanel title="TOKEN" isEditing={!isLocked}>
+        <div className="w-72 flex-shrink-0 border-r border-gray-800 flex flex-col">
+          {/* Token Image - Takes most space */}
+          <div className="h-64 flex-shrink-0 border-b border-gray-800">
             <TokenImageInfo tokenAddress={tokenAddress} />
-          </DashboardPanel>
+          </div>
+
+          {/* Description - Compact */}
+          {description && (
+            <div className="p-3 border-b border-gray-800 bg-black">
+              <h3 className="text-[10px] text-gray-500 uppercase mb-1">About</h3>
+              <p className="text-xs text-gray-300 leading-relaxed line-clamp-4">
+                {description}
+              </p>
+            </div>
+          )}
+
+          {/* Chat + Board - Small, for future */}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 min-h-[120px] border-b border-gray-800 overflow-hidden">
+              <LiveChat tokenAddress={tokenAddress} />
+            </div>
+            <div className="flex-1 min-h-[120px] overflow-hidden">
+              <MessageBoard tokenAddress={tokenAddress} />
+            </div>
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 2: Message Board (LEFT MIDDLE) */}
+        {/* CENTER COLUMN - Chart (BIG) + Transactions */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div key="message-board">
-          <DashboardPanel title="MESSAGE BOARD" isEditing={!isLocked}>
-            <MessageBoard tokenAddress={tokenAddress} />
-          </DashboardPanel>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 3: Live Chat (LEFT BOTTOM) */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div key="live-chat">
-          <DashboardPanel title="LIVE CHAT" isEditing={!isLocked}>
-            <LiveChat tokenAddress={tokenAddress} />
-          </DashboardPanel>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 4: Price Chart (CENTER - HUGE) */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div key="chart">
-          <DashboardPanel title="CHART" isEditing={!isLocked}>
+        <div className="flex-1 min-w-0 flex flex-col border-r border-gray-800">
+          {/* Chart - Takes 70% of center column */}
+          <div className="flex-[7] min-h-0">
             <PriceChart tokenAddress={tokenAddress} />
-          </DashboardPanel>
+          </div>
+
+          {/* Transactions - Takes 30% */}
+          <div className="flex-[3] min-h-0 border-t border-gray-800">
+            <TransactionFeed tokenAddress={tokenAddress} tokenSymbol={(symbol as string) || 'TOKEN'} />
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 5: Buys & Sells Table (CENTER BOTTOM) */}
+        {/* RIGHT COLUMN - Token Info + Trade Panel + Holders */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div key="transactions">
-          <DashboardPanel title="BUYS & SELLS" isEditing={!isLocked}>
-            <BuySellsTable tokenAddress={tokenAddress} />
-          </DashboardPanel>
-        </div>
+        <div className="w-80 flex-shrink-0 flex flex-col">
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* TOKEN INFO BAR - Name, Symbol, Status, Contract, Socials */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <div className="p-3 border-b border-gray-800 bg-black/50">
+            {/* Name & Symbol */}
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-[#d6ffe0] font-bold text-lg">{(name as string) || '...'}</h2>
+                <span className="text-gray-400 text-xs font-mono">${(symbol as string) || '...'}</span>
+              </div>
+              {/* Status Badge */}
+              {graduated ? (
+                <div className="px-2 py-1 bg-[#d6ffe0]/90 text-black text-[10px] font-black rounded">
+                  ✓ GRADUATED
+                </div>
+              ) : (
+                <div className="px-2 py-1 bg-orange-500/90 text-black text-[10px] font-black rounded flex items-center gap-1">
+                  <Flame size={10} /> {bondingProgress.toFixed(0)}%
+                </div>
+              )}
+            </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 6: Swap Widget (RIGHT TOP) */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div key="swap">
-          <DashboardPanel title="SWAP" isEditing={!isLocked}>
-            <SwapWidget
+            {/* Contract Address */}
+            <button
+              onClick={copyAddress}
+              className="flex items-center gap-2 w-full px-2 py-1.5 bg-gray-900 rounded text-xs font-mono text-[#d6ffe0] hover:bg-gray-800 mb-2"
+            >
+              {formatAddress(tokenAddress)}
+              {copied ? <Check size={10} /> : <Copy size={10} />}
+              <a
+                href={`https://scan.pulsechain.com/token/${tokenAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto text-gray-400 hover:text-[#d6ffe0]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink size={10} />
+              </a>
+            </button>
+
+            {/* Socials */}
+            {socials && (socials.twitter || socials.telegram || socials.website) && (
+              <div className="flex gap-1">
+                {socials.twitter && (
+                  <a href={socials.twitter} target="_blank" rel="noopener noreferrer"
+                     className="p-1.5 bg-gray-900 rounded text-gray-400 hover:text-[#d6ffe0]">
+                    <Twitter size={12} />
+                  </a>
+                )}
+                {socials.telegram && (
+                  <a href={socials.telegram} target="_blank" rel="noopener noreferrer"
+                     className="p-1.5 bg-gray-900 rounded text-gray-400 hover:text-[#d6ffe0]">
+                    <Send size={12} />
+                  </a>
+                )}
+                {socials.website && (
+                  <a href={socials.website} target="_blank" rel="noopener noreferrer"
+                     className="p-1.5 bg-gray-900 rounded text-gray-400 hover:text-[#d6ffe0]">
+                    <Globe size={12} />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Trade Panel - Main focus */}
+          <div className="flex-[3] min-h-0 overflow-y-auto border-b border-gray-800">
+            <TradePanel tokenAddress={tokenAddress} tokenSymbol={(symbol as string) || 'TOKEN'} />
+          </div>
+          {/* Holders - Shorter */}
+          <div className="flex-[2] min-h-0 overflow-y-auto">
+            <HoldersPanel
               tokenAddress={tokenAddress}
-              tokenSymbol={tokenSymbol}
+              tokenSymbol={(symbol as string) || 'TOKEN'}
+              totalSupply={totalSupply as bigint}
+              creator={creator as `0x${string}`}
             />
-          </DashboardPanel>
+          </div>
         </div>
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* COMPONENT 7: Holders List (RIGHT BOTTOM) */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div key="holders">
-          <DashboardPanel title="HOLDERS" isEditing={!isLocked}>
-            <HoldersList
-              tokenAddress={tokenAddress}
-              tokenSymbol={tokenSymbol}
-              totalSupply={totalSupply}
-              creator={creator}
-            />
-          </DashboardPanel>
-        </div>
-      </DashboardWrapper>
-
-      {/* ═══════════════════════════════════════════════════════════════════════ */}
-      {/* GLOBAL STYLES FOR GRID */}
-      {/* ═══════════════════════════════════════════════════════════════════════ */}
-      <style jsx global>{`
-        .react-grid-item.react-grid-placeholder {
-          background: rgba(57, 255, 20, 0.15) !important;
-          border: 2px dashed #39ff14 !important;
-          border-radius: 8px;
-        }
-        .react-resizable-handle {
-          background: transparent !important;
-        }
-        .react-resizable-handle::after {
-          border-color: rgba(57, 255, 20, 0.5) !important;
-        }
-        .react-grid-item.resizing {
-          z-index: 100;
-          opacity: 0.9;
-        }
-        .react-grid-item.react-draggable-dragging {
-          z-index: 100;
-          box-shadow: 0 10px 40px rgba(57, 255, 20, 0.3);
-        }
-      `}</style>
+      </div>
     </div>
   );
 }

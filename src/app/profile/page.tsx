@@ -31,7 +31,7 @@ import { Input } from '@/components/ui/Input';
 import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS } from '@/config/wagmi';
 import { formatAddress, formatPLS } from '@/lib/utils';
-import { useProfileStore } from '@/stores/profileStore';
+import { useProfileStore, useProfileHydration } from '@/stores/profileStore';
 
 interface TokenInfo {
   address: `0x${string}`;
@@ -60,9 +60,10 @@ export default function ProfilePage() {
   const [editTelegram, setEditTelegram] = useState('');
   const [editWebsite, setEditWebsite] = useState('');
 
-  // Profile store
+  // Profile store with hydration check
   const { getProfile, setProfile } = useProfileStore();
-  const profile = address ? getProfile(address) : null;
+  const hasHydrated = useProfileHydration();
+  const profile = address && hasHydrated ? getProfile(address) : null;
 
   // Get PLS balance
   const { data: plsBalance } = useBalance({

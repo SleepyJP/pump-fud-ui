@@ -69,7 +69,7 @@ export type PanelSkin =
 
 export const PANEL_SKINS: { id: PanelSkin; name: string; preview: string }[] = [
   { id: 'default', name: 'Default', preview: 'border-fud-green/30' },
-  { id: 'neon', name: 'Neon Glow', preview: 'border-fud-green shadow-[0_0_20px_rgba(0,255,136,0.5)]' },
+  { id: 'neon', name: 'Neon Glow', preview: 'border-fud-green shadow-[0_0_20px_rgba(214,255,224,0.5)]' },
   { id: 'matrix', name: 'Matrix', preview: 'border-green-500 bg-green-950/20' },
   { id: 'cyber', name: 'Cyberpunk', preview: 'border-fuchsia-500 bg-fuchsia-950/10' },
   { id: 'minimal', name: 'Minimal', preview: 'border-zinc-700 bg-zinc-900/50' },
@@ -81,7 +81,7 @@ export const PANEL_SKINS: { id: PanelSkin; name: string; preview: string }[] = [
 export const getSkinClasses = (skin: PanelSkin): string => {
   const skinMap: Record<PanelSkin, string> = {
     default: 'border-fud-green/30 bg-dark-secondary/80',
-    neon: 'border-fud-green shadow-[0_0_20px_rgba(0,255,136,0.4)] bg-dark-secondary/90',
+    neon: 'border-fud-green shadow-[0_0_20px_rgba(214,255,224,0.4)] bg-dark-secondary/90',
     matrix: 'border-green-400 bg-green-950/30 shadow-[inset_0_0_30px_rgba(0,255,0,0.1)]',
     cyber: 'border-fuchsia-500 bg-gradient-to-br from-fuchsia-950/20 to-cyan-950/20 shadow-[0_0_15px_rgba(217,70,239,0.3)]',
     minimal: 'border-zinc-700 bg-zinc-900/60',

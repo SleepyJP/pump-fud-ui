@@ -1,15 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors */
+  /* Colors - STANDARDIZED NEON GREEN: #00ff88 */
   --color-fud-green: #00ff88;
-  --color-fud-green-bright: #00FF41;
-  --color-fud-green-neon: #39FF14;
-  --color-fud-green-dark: #00CC00;
+  --color-fud-green-bright: #00ff88;
+  --color-fud-green-neon: #00ff88;
+  --color-fud-green-dark: #00cc70;
   --color-fud-pink: #FF00FF;
   --color-fud-purple: #8b5cf6;
   --color-fud-red: #ef4444;
   --color-fud-orange: #f97316;
+
+  /* Text colors - STANDARDIZED NEON WHITE: #ffffff */
+  --color-neon-white: #ffffff;
 
   --color-dark-bg: #0a0a0a;
   --color-dark-secondary: #141414;
@@ -20,7 +23,7 @@
   --color-border-glow: rgba(0, 255, 136, 0.3);
 
   --color-text-primary: #ffffff;
-  --color-text-secondary: #e5e7eb;
+  --color-text-secondary: #ffffff;
   --color-text-muted: #9ca3af;
 
   /* Fonts */
@@ -34,13 +37,13 @@
 }
 
 @keyframes neonPulse {
-  0%, 100% { box-shadow: 0 0 5px #00ff88, 0 0 10px #00ff88, 0 0 20px #00ff88; }
-  50% { box-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 40px #00ff88; }
+  0%, 100% { box-shadow: 0 0 5px var(--color-fud-green), 0 0 10px var(--color-fud-green), 0 0 20px var(--color-fud-green); }
+  50% { box-shadow: 0 0 10px var(--color-fud-green), 0 0 20px var(--color-fud-green), 0 0 40px var(--color-fud-green); }
 }
 
 @keyframes glow {
-  0% { text-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88; }
-  100% { text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88, 0 0 60px #00ff88; }
+  0% { text-shadow: 0 0 10px var(--color-fud-green), 0 0 20px var(--color-fud-green); }
+  100% { text-shadow: 0 0 20px var(--color-fud-green), 0 0 40px var(--color-fud-green), 0 0 60px var(--color-fud-green); }
 }
 
 :root {
@@ -87,24 +90,24 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #00FF00;
+  background: #00ff88;
 }
 
 /* Selection */
 ::selection {
   background: rgba(0, 255, 0, 0.3);
-  color: #00FF00;
+  color: #00ff88;
 }
 
 /* Focus styles */
 *:focus-visible {
-  outline: 2px solid #00FF00;
+  outline: 2px solid #00ff88;
   outline-offset: 2px;
 }
 
 /* Neon text glow */
 .text-glow {
-  text-shadow: 0 0 10px #00FF00, 0 0 20px #00FF00, 0 0 40px #00FF00;
+  text-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 40px #00ff88;
 }
 
 /* Grid background pattern */
@@ -141,7 +144,7 @@ input[type='number'] {
 
 /* RainbowKit customization */
 [data-rk] {
-  --rk-colors-accentColor: #00FF00;
+  --rk-colors-accentColor: #00ff88;
   --rk-colors-accentColorForeground: #000000;
 }
 

@@ -128,10 +128,10 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-black/40 to-black/60 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#39ff14]/20">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[#d6ffe0]/20">
         <div className="flex items-center gap-2">
-          <Clipboard size={16} className="text-[#39ff14]" />
-          <span className="font-mono text-sm text-[#39ff14] font-bold">MESSAGE BOARD</span>
+          <Clipboard size={16} className="text-[#d6ffe0]" />
+          <span className="font-mono text-sm text-[#d6ffe0] font-bold">MESSAGE BOARD</span>
         </div>
         <span className="text-[10px] font-mono text-gray-500">
           {posts.length} posts
@@ -139,7 +139,7 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
       </div>
 
       {/* Posts */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3 scrollbar-thin scrollbar-thumb-[#39ff14]/20 scrollbar-track-transparent">
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3 scrollbar-thin scrollbar-thumb-[#d6ffe0]/20 scrollbar-track-transparent">
         {!tokenAddress ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
@@ -224,7 +224,7 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
 
       {/* Input Area */}
       {tokenAddress && isConnected && (
-        <div className="p-3 border-t border-[#39ff14]/10 space-y-2">
+        <div className="p-3 border-t border-[#d6ffe0]/10 space-y-2">
           {/* Paid Post Toggle */}
           <button
             onClick={() => setIsPaidMode(!isPaidMode)}
@@ -275,7 +275,7 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
             placeholder={isPaidMode ? 'Write your promoted announcement...' : 'Post to the board...'}
             maxLength={500}
             rows={2}
-            className="w-full px-3 py-2 bg-black/60 border border-[#39ff14]/20 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#39ff14]/50 transition-colors resize-none"
+            className="w-full px-3 py-2 bg-black/60 border border-[#d6ffe0]/20 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#d6ffe0]/50 transition-colors resize-none"
           />
 
           {/* Post Button */}
@@ -285,7 +285,7 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
             className={`w-full py-2.5 rounded-lg font-mono text-sm font-bold transition-all flex items-center justify-center gap-2 ${
               isPaidMode
                 ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-400 hover:to-pink-400'
-                : 'bg-[#39ff14] text-black hover:bg-[#39ff14]/80'
+                : 'bg-[#d6ffe0] text-black hover:bg-[#d6ffe0]/80'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             <Send size={16} />
@@ -303,7 +303,7 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
 
       {/* Not connected */}
       {tokenAddress && !isConnected && (
-        <div className="p-3 border-t border-[#39ff14]/10">
+        <div className="p-3 border-t border-[#d6ffe0]/10">
           <p className="text-xs font-mono text-gray-500 text-center">
             Connect wallet to post
           </p>

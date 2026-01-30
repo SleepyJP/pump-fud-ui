@@ -96,7 +96,7 @@ describe('HoldersList (HoldersPanel)', () => {
     it('styles top 3 ranks in green', () => {
       render(<HoldersPanel {...mockProps} />);
       const rank1 = screen.getByText('#1');
-      expect(rank1).toHaveClass('text-[#39ff14]');
+      expect(rank1).toHaveClass('text-[#d6ffe0]');
     });
   });
 

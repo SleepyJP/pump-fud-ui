@@ -11,8 +11,8 @@ const TokenDashboard = dynamic(
     loading: () => (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-[#39ff14] border-t-transparent rounded-full animate-spin" />
-          <span className="text-[#39ff14] text-lg animate-pulse">Loading Token Dashboard...</span>
+          <div className="w-12 h-12 border-4 border-[#d6ffe0] border-t-transparent rounded-full animate-spin" />
+          <span className="text-[#d6ffe0] text-lg animate-pulse">Loading Token Dashboard...</span>
         </div>
       </div>
     )
@@ -35,7 +35,7 @@ export default function TokenPage() {
   if (!mounted) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#39ff14] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#d6ffe0] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -46,7 +46,7 @@ export default function TokenPage() {
         <div className="text-center">
           <h1 className="text-2xl text-red-500 mb-4">Error</h1>
           <p className="text-gray-400">{error}</p>
-          <a href="/tokens" className="text-[#39ff14] hover:underline mt-4 inline-block">← Back to Tokens</a>
+          <a href="/tokens" className="text-[#d6ffe0] hover:underline mt-4 inline-block">← Back to Tokens</a>
         </div>
       </div>
     );
