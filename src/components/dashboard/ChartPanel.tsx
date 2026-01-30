@@ -35,28 +35,26 @@ interface CandleData {
 // TokenBought(buyer, plsSpent, tokensBought, referrer)
 // TokenSold(seller, tokensSold, plsReceived)
 
-// BEAST MODE TIMEFRAMES - including seconds for snipers
-type TimeFrame = '5S' | '15S' | '1M' | '5M' | '15M' | '1H' | '4H' | '1D';
+// DEX Screener style timeframes - no second-level noise
+type TimeFrame = '1m' | '5m' | '15m' | '1h' | '4h' | '1D';
 
 // Chart types like TradingView
 type ChartType = 'candles' | 'line' | 'area' | 'bars' | 'hollow';
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
-  candles: '🕯️ Candles',
-  hollow: '🕯️ Hollow',
-  bars: '📊 Bars',
-  line: '📈 Line',
-  area: '📉 Area',
+  candles: 'Candles',
+  hollow: 'Hollow',
+  bars: 'Bars',
+  line: 'Line',
+  area: 'Area',
 };
 
 const TIMEFRAME_SECONDS: Record<TimeFrame, number> = {
-  '5S': 5,
-  '15S': 15,
-  '1M': 60,
-  '5M': 300,
-  '15M': 900,
-  '1H': 3600,
-  '4H': 14400,
+  '1m': 60,
+  '5m': 300,
+  '15m': 900,
+  '1h': 3600,
+  '4h': 14400,
   '1D': 86400,
 };
 
@@ -70,7 +68,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
   const isChartReadyRef = useRef(false);
   const lastFetchBlockRef = useRef<bigint>(BigInt(0));
 
-  const [timeframe, setTimeframe] = useState<TimeFrame>('1M');
+  const [timeframe, setTimeframe] = useState<TimeFrame>('5m');
   const [chartType, setChartType] = useState<ChartType>('candles');
   const [showChartTypeMenu, setShowChartTypeMenu] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -354,8 +352,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             borderColor: '#2a2e39',
             timeVisible: true,
             secondsVisible: false,
-            barSpacing: 6,
-            minBarSpacing: 4,
+            rightOffset: 5,
           },
           handleScroll: { vertTouchDrag: false },
         });
@@ -645,7 +642,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       <div className="flex items-center justify-between px-4 py-2 border-b border-[#26a69a]/10 bg-[#1e222d]">
         {/* Timeframe Buttons */}
         <div className="flex items-center gap-1">
-          {(['5S', '15S', '1M', '5M', '15M', '1H', '4H', '1D'] as TimeFrame[]).map((tf) => (
+          {(['1m', '5m', '15m', '1h', '4h', '1D'] as TimeFrame[]).map((tf) => (
             <button
               key={tf}
               onClick={() => setTimeframe(tf)}
