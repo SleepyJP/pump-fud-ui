@@ -532,23 +532,15 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
         }))
       );
     } else {
-      // Candles/Hollow use OHLC format
+      // Candles/Hollow - DEX Screener style: standard OHLC (colors from series options)
       candleSeriesRef.current.setData(
-        candles.map((c) => {
-          const isBuyDominant = c.buyVolume >= c.sellVolume;
-          const color = isBuyDominant ? upColor : downColor;
-
-          return {
-            time: c.time,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close,
-            color: color,
-            borderColor: color,
-            wickColor: color,
-          };
-        })
+        candles.map((c) => ({
+          time: c.time,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+        }))
       );
     }
 

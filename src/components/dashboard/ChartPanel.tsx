@@ -542,23 +542,15 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             }))
           );
         } else {
-          // Candles/Bars/Hollow need OHLC
+          // Candles/Bars/Hollow - DEX Screener style: color based on close vs open
           candleSeriesRef.current.setData(
-            validCandles.map((c) => {
-              const isBuyDominant = c.buyVolume >= c.sellVolume;
-              const color = isBuyDominant ? '#26a69a' : '#ef5350';
-
-              return {
-                time: c.time,
-                open: c.open,
-                high: c.high,
-                low: c.low,
-                close: c.close,
-                color: color,
-                borderColor: color,
-                wickColor: color,
-              };
-            })
+            validCandles.map((c) => ({
+              time: c.time,
+              open: c.open,
+              high: c.high,
+              low: c.low,
+              close: c.close,
+            }))
           );
         }
 
