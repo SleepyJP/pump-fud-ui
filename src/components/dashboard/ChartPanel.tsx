@@ -595,7 +595,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
 
   if (chartError) {
     return (
-      <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
+      <div className="h-full flex flex-col" style={{ backgroundColor: '#131722' }}>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center p-4">
             <div className="text-6xl mb-4">⚠️</div>
@@ -605,7 +605,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
                 setChartError(null);
                 fetchTrades();
               }}
-              className="px-4 py-2 bg-fud-green/20 text-fud-green rounded hover:bg-fud-green/30 font-mono text-sm"
+              className="px-4 py-2 bg-[#26a69a]/20 text-[#26a69a] rounded hover:bg-[#26a69a]/30 font-mono text-sm"
             >
               Retry
             </button>
@@ -616,22 +616,22 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-fud-green/20">
+    <div className="h-full flex flex-col" style={{ backgroundColor: '#131722' }}>
+      {/* Header - DEX Screener style */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2e39]">
         <div className="flex items-center gap-3">
-          <Zap className="text-fud-green" size={18} />
-          <span className="font-display text-sm text-fud-green font-bold">BEAST CHART</span>
-          {isLoading && <RefreshCw size={12} className="text-fud-green animate-spin" />}
+          <Zap className="text-[#26a69a]" size={18} />
+          <span className="font-display text-sm text-[#26a69a] font-bold">BEAST CHART</span>
+          {isLoading && <RefreshCw size={12} className="text-[#26a69a] animate-spin" />}
         </div>
         {currentPrice > 0 && (
           <div className="flex items-center gap-3">
-            <span className="text-fud-green font-mono text-sm font-bold">
+            <span className="text-[#26a69a] font-mono text-sm font-bold">
               {formatPrice(currentPrice)} PLS
             </span>
             <span className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded ${
               priceChange >= 0
-                ? 'bg-fud-green/20 text-fud-green'
+                ? 'bg-[#26a69a]/20 text-[#26a69a]'
                 : 'bg-red-500/20 text-red-400'
             }`}>
               {priceChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
@@ -642,7 +642,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       </div>
 
       {/* BEAST Timeframe + Chart Type */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-fud-green/10 bg-dark-secondary/30">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[#26a69a]/10 bg-[#1e222d]">
         {/* Timeframe Buttons */}
         <div className="flex items-center gap-1">
           {(['5S', '15S', '1M', '5M', '15M', '1H', '4H', '1D'] as TimeFrame[]).map((tf) => (
@@ -651,8 +651,8 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
               onClick={() => setTimeframe(tf)}
               className={`px-2 py-1 text-[10px] font-mono rounded transition-all ${
                 timeframe === tf
-                  ? 'text-black bg-fud-green font-bold shadow-lg shadow-fud-green/30'
-                  : 'text-text-muted hover:text-fud-green hover:bg-fud-green/10'
+                  ? 'text-black bg-[#26a69a] font-bold shadow-lg shadow-[#26a69a]/30'
+                  : 'text-text-muted hover:text-[#26a69a] hover:bg-[#26a69a]/10'
               }`}
             >
               {tf}
@@ -664,13 +664,13 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
         <div className="relative">
           <button
             onClick={() => setShowChartTypeMenu(!showChartTypeMenu)}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded bg-dark-tertiary hover:bg-fud-green/10 text-text-muted hover:text-fud-green transition-all"
+            className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono rounded bg-[#2a2e39] hover:bg-[#26a69a]/10 text-text-muted hover:text-[#26a69a] transition-all"
           >
             {CHART_TYPE_LABELS[chartType]}
             <ChevronDown size={10} />
           </button>
           {showChartTypeMenu && (
-            <div className="absolute right-0 top-full mt-1 z-50 bg-dark-secondary border border-fud-green/20 rounded shadow-lg min-w-[120px]">
+            <div className="absolute right-0 top-full mt-1 z-50 bg-[#1e222d] border border-[#26a69a]/20 rounded shadow-lg min-w-[120px]">
               {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((type) => (
                 <button
                   key={type}
@@ -678,8 +678,8 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
                     setChartType(type);
                     setShowChartTypeMenu(false);
                   }}
-                  className={`w-full text-left px-3 py-2 text-[10px] font-mono hover:bg-fud-green/10 transition-all ${
-                    chartType === type ? 'text-fud-green bg-fud-green/5' : 'text-text-muted'
+                  className={`w-full text-left px-3 py-2 text-[10px] font-mono hover:bg-[#26a69a]/10 transition-all ${
+                    chartType === type ? 'text-[#26a69a] bg-[#26a69a]/5' : 'text-text-muted'
                   }`}
                 >
                   {CHART_TYPE_LABELS[type]}
@@ -694,7 +694,7 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       <div className="flex-1 relative min-h-0">
         <div ref={chartContainerRef} className="absolute inset-0">
           {!tokenAddress && (
-            <div className="absolute inset-0 flex items-center justify-center bg-dark-primary/80">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#131722]/80">
               <div className="text-center">
                 <div className="text-6xl mb-4 opacity-50">📈</div>
                 <p className="text-text-muted text-sm font-mono">Select a token to view chart</p>
@@ -702,10 +702,10 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             </div>
           )}
           {tokenAddress && isLoading && trades.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-dark-primary/80">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#131722]/80">
               <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-3 border-fud-green/30 border-t-fud-green rounded-full animate-spin" />
-                <span className="text-fud-green text-xs font-mono">Loading beast data...</span>
+                <div className="w-10 h-10 border-3 border-[#26a69a]/30 border-t-[#26a69a] rounded-full animate-spin" />
+                <span className="text-[#26a69a] text-xs font-mono">Loading beast data...</span>
               </div>
             </div>
           )}
@@ -713,11 +713,11 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 border-t border-fud-green/10 bg-dark-secondary/30 flex items-center justify-between">
+      <div className="px-4 py-2 border-t border-[#26a69a]/10 bg-[#1e222d] flex items-center justify-between">
         <span className="text-[10px] font-mono text-text-muted">
           {lastUpdate ? `Updated ${lastUpdate.toLocaleTimeString()}` : 'Waiting...'}
         </span>
-        <span className="text-[10px] font-mono text-fud-green">
+        <span className="text-[10px] font-mono text-[#26a69a]">
           {tradeCount} trades | Block #{blockNumber?.toString() ?? '...'}
         </span>
       </div>
