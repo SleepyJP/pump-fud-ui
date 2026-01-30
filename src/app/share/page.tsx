@@ -79,7 +79,7 @@ export default function SharePage() {
 
       {/* Tagline */}
       <p className="mt-10 text-fud-green font-display text-xl tracking-widest animate-pulse">
-        FUD UP YOUR ASS
+        FAIR LAUNCHES. DUAL DEX GRADUATION.
       </p>
 
       {/* Chain Badge */}

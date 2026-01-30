@@ -29,8 +29,31 @@ const cinzel = Cinzel({
 export const metadata: Metadata = {
   title: 'PUMP.FUD | Memecoin Launchpad on PulseChain',
   description:
-    'The ultimate memecoin launchpad on PulseChain. Fair launches with bonding curves, automatic graduation to PulseX. FUD UP YOUR ASS!',
+    'The ultimate memecoin launchpad on PulseChain. Fair launches with bonding curves, automatic graduation to PulseX V2 & Paisley Swap.',
   keywords: ['PulseChain', 'memecoin', 'launchpad', 'bonding curve', 'DeFi', 'PUMP.FUD'],
+  metadataBase: new URL('https://pump-fud-ui.vercel.app'),
+  openGraph: {
+    title: 'PUMP.FUD | Memecoin Launchpad on PulseChain',
+    description: 'Launch memecoins on PulseChain with fair bonding curves. Auto-graduation to PulseX V2 & Paisley Swap Smart Router.',
+    url: 'https://pump-fud-ui.vercel.app',
+    siteName: 'PUMP.FUD',
+    images: [
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 1200,
+        alt: 'PUMP.FUD - Memecoin Launchpad',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'PUMP.FUD | Memecoin Launchpad on PulseChain',
+    description: 'Launch memecoins on PulseChain with fair bonding curves. Auto-graduation to PulseX V2 & Paisley Swap Smart Router.',
+    images: ['/og-image.jpg'],
+  },
 };
 
 export default function RootLayout({
