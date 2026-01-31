@@ -539,15 +539,31 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             }))
           );
         } else {
-          // Candles/Bars/Hollow - DEX Screener style: color based on close vs open
+          // Candles/Bars/Hollow - DEX Screener style with minimum candle body
           candleSeriesRef.current.setData(
-            validCandles.map((c) => ({
-              time: c.time,
-              open: c.open,
-              high: c.high,
-              low: c.low,
-              close: c.close,
-            }))
+            validCandles.map((c) => {
+              // Give flat candles a minimum body so they don't look like thin lines
+              let open = c.open;
+              let close = c.close;
+              const minSpread = c.close * 0.002; // 0.2% minimum body
+
+              if (Math.abs(close - open) < minSpread) {
+                // Create small body - green if close >= open, red otherwise
+                if (close >= open) {
+                  open = c.close - minSpread;
+                } else {
+                  open = c.close + minSpread;
+                }
+              }
+
+              return {
+                time: c.time,
+                open: open,
+                high: Math.max(c.high, open, close),
+                low: Math.min(c.low, open, close),
+                close: close,
+              };
+            })
           );
         }
 
