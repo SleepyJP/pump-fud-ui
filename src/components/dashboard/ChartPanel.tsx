@@ -353,18 +353,21 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             timeVisible: true,
             secondsVisible: false,
             rightOffset: 5,
+            barSpacing: 12, // Wider spacing for thicker candles like DEX Screener
           },
           handleScroll: { vertTouchDrag: false },
         });
 
         chartRef.current = chartInstance;
 
-        // Create initial candlestick series RIGHT HERE - no async bullshit
+        // Create initial candlestick series - DEX Screener style thick candles
         const candleSeries = chartInstance.addSeries(CandlestickSeries, {
           upColor: '#26a69a',
           downColor: '#ef5350',
+          borderVisible: true,
           borderUpColor: '#26a69a',
           borderDownColor: '#ef5350',
+          wickVisible: true,
           wickUpColor: '#26a69a',
           wickDownColor: '#ef5350',
         });
@@ -453,8 +456,10 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           newSeries = chartRef.current.addSeries(CandlestickSeries, {
             upColor: '#26a69a',
             downColor: '#ef5350',
+            borderVisible: true,
             borderUpColor: '#26a69a',
             borderDownColor: '#ef5350',
+            wickVisible: true,
             wickUpColor: '#26a69a',
             wickDownColor: '#ef5350',
           });
@@ -493,8 +498,10 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           newSeries = chartRef.current.addSeries(CandlestickSeries, {
             upColor: '#26a69a',
             downColor: '#ef5350',
+            borderVisible: true,
             borderUpColor: '#26a69a',
             borderDownColor: '#ef5350',
+            wickVisible: true,
             wickUpColor: '#26a69a',
             wickDownColor: '#ef5350',
           });
