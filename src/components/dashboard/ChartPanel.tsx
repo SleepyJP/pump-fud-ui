@@ -345,15 +345,16 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
           },
           rightPriceScale: {
             borderColor: '#2a2e39',
-            scaleMargins: { top: 0.1, bottom: 0.2 },
-            mode: 1, // Logarithmic for memecoins
+            scaleMargins: { top: 0.05, bottom: 0.05 },
+            autoScale: true,
           },
           timeScale: {
             borderColor: '#2a2e39',
             timeVisible: true,
             secondsVisible: false,
-            rightOffset: 5,
-            barSpacing: 12, // Wider spacing for thicker candles like DEX Screener
+            rightOffset: 12,
+            barSpacing: 16, // Wide spacing for visible candle bodies
+            minBarSpacing: 8,
           },
           handleScroll: { vertTouchDrag: false },
         });
@@ -546,31 +547,15 @@ export function ChartPanel({ tokenAddress }: ChartPanelProps) {
             }))
           );
         } else {
-          // Candles/Bars/Hollow - DEX Screener style with minimum candle body
+          // Candles/Bars/Hollow - standard OHLC, let the chart handle colors
           candleSeriesRef.current.setData(
-            validCandles.map((c) => {
-              // Give flat candles a minimum body so they don't look like thin lines
-              let open = c.open;
-              let close = c.close;
-              const minSpread = c.close * 0.002; // 0.2% minimum body
-
-              if (Math.abs(close - open) < minSpread) {
-                // Create small body - green if close >= open, red otherwise
-                if (close >= open) {
-                  open = c.close - minSpread;
-                } else {
-                  open = c.close + minSpread;
-                }
-              }
-
-              return {
-                time: c.time,
-                open: open,
-                high: Math.max(c.high, open, close),
-                low: Math.min(c.low, open, close),
-                close: close,
-              };
-            })
+            validCandles.map((c) => ({
+              time: c.time,
+              open: c.open,
+              high: c.high,
+              low: c.low,
+              close: c.close,
+            }))
           );
         }
 
