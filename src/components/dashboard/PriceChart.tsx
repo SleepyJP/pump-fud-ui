@@ -345,17 +345,16 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
       },
       rightPriceScale: {
         borderColor: '#2a2e39',
-        scaleMargins: { top: 0.1, bottom: 0.2 },
+        scaleMargins: { top: 0.05, bottom: 0.05 },
         autoScale: true,
-        mode: 1, // Logarithmic by default for memecoins
       },
       timeScale: {
         borderColor: '#2a2e39',
         timeVisible: true,
         secondsVisible: false,
-        barSpacing: 6, // DEX Screener uses tighter spacing
-        minBarSpacing: 4,
-        rightOffset: 5,
+        barSpacing: 16, // Wide spacing for visible candle bodies
+        minBarSpacing: 8,
+        rightOffset: 12,
       },
       width: chartContainerRef.current.clientWidth,
       height: chartContainerRef.current.clientHeight,
