@@ -66656,3 +66656,349 @@ Error: listen EADDRINUSE: address already in use :::3001
 🔄 Restarting API in 5 seconds...
 🚀 Starting API...
 📦 Processing blocks 25666863 to 25666864
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666865 to 25666865
+🚀 Starting API...
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666866 to 25666866
+🚀 Starting API...
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666867 to 25666867
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666868 to 25666868
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666869 to 25666869
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666870 to 25666871
+🚀 Starting API...
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666872 to 25666872
+🚀 Starting API...
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666873 to 25666873
+🚀 Starting API...
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666874 to 25666874
+🚀 Starting API...
+📦 Processing blocks 25666875 to 25666875
+📦 Processing blocks 25666876 to 25666877
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666878 to 25666878
+📦 Processing blocks 25666879 to 25666879
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666880 to 25666880
+📦 Processing blocks 25666881 to 25666882
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666883 to 25666883
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666884 to 25666884
+🚀 Starting API...
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666885 to 25666885
+🚀 Starting API...
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+📦 Processing blocks 25666886 to 25666886
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666887 to 25666887
+📦 Processing blocks 25666888 to 25666889
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666890 to 25666890
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+📦 Processing blocks 25666891 to 25666891
+🚀 Starting API...
+📦 Processing blocks 25666892 to 25666892
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666893 to 25666894
+✅ Database initialized
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at Function.listen (/home/sleepyj/pump-fud-ui/indexer/node_modules/express/lib/application.js:635:24)
+    at startServer (/home/sleepyj/pump-fud-ui/indexer/src/api.ts:470:7) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+⚠️ API exited with code 1
+🔄 Restarting API in 5 seconds...
+🚀 Starting API...
+📦 Processing blocks 25666895 to 25666895

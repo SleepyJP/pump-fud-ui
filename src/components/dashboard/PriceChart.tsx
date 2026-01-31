@@ -486,7 +486,7 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
     candleSeriesRef.current = series as ISeriesApi<'Candlestick'>;
 
     // Save settings
-    saveChartSettings({ chartType, upColor, downColor, scaleMode, autoFit, invertScale, scaleOnLeft });
+    saveChartSettings({ version: SETTINGS_VERSION, chartType, upColor, downColor, scaleMode, autoFit, invertScale, scaleOnLeft });
   }, [chartType, upColor, downColor, scaleMode, autoFit, invertScale, scaleOnLeft, trades.length]);
 
   // Apply scale settings when they change
