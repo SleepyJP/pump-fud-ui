@@ -163,8 +163,8 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', graduated = fa
     }
   }, [graduated, parsedAmount, fetchDexQuote]);
 
-  const { writeContract, data: hash, isPending, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess, isError } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, data: hash, isPending, reset, error: writeError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess, isError, error: txError } = useWaitForTransactionReceipt({ hash });
 
   // Track if we just completed an approval to trigger swap
   const [pendingSwapAfterApproval, setPendingSwapAfterApproval] = useState(false);
@@ -426,9 +426,9 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', graduated = fa
         )}
 
         {/* Status */}
-        {(isPending || isConfirming || isSuccess || isError) && (
+        {(isPending || isConfirming || isSuccess || isError || writeError) && (
           <div className={`text-center text-[10px] font-mono py-1 rounded ${
-            isSuccess ? 'text-[#d6ffe0] bg-[#d6ffe0]/10' : isError ? 'text-red-400 bg-red-500/10' : 'text-yellow-400 bg-yellow-500/10'
+            isSuccess ? 'text-[#d6ffe0] bg-[#d6ffe0]/10' : (isError || writeError) ? 'text-red-400 bg-red-500/10' : 'text-yellow-400 bg-yellow-500/10'
           }`}>
             {isPending
               ? (isApproving ? 'Approve in wallet...' : 'Confirm in wallet...')
@@ -436,6 +436,10 @@ export function TradePanel({ tokenAddress, tokenSymbol = 'TOKEN', graduated = fa
               ? (isApproving ? 'Approving...' : 'Processing...')
               : isSuccess
               ? (isApproving ? 'Approved! Swapping...' : 'Success!')
+              : writeError
+              ? `Error: ${writeError.message?.slice(0, 80) || 'Transaction rejected'}`
+              : txError
+              ? `Failed: ${txError.message?.slice(0, 80) || 'Transaction reverted'}`
               : 'Failed'}
           </div>
         )}
