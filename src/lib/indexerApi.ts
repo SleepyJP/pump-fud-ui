@@ -1,6 +1,9 @@
 // PUMP.FUD Indexer API Client
+// Uses same-origin API routes when deployed, falls back to localhost for dev
 
-const API_BASE = process.env.NEXT_PUBLIC_INDEXER_API || 'http://localhost:3001';
+const API_BASE = typeof window !== 'undefined'
+  ? '' // Use relative paths in browser (same origin)
+  : (process.env.NEXT_PUBLIC_INDEXER_API || 'http://localhost:3001');
 
 // ═══════════════════════════════════════
 // TYPES

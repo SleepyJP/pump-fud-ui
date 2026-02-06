@@ -27,22 +27,22 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: 'PUMP.FUD | Memecoin Launchpad on PulseChain',
+  title: 'PUMP.FUD | Gamified MemeCoin LaunchPad',
   description:
-    'The ultimate memecoin launchpad on PulseChain. Fair launches with bonding curves, automatic graduation to PulseX V2 & Paisley Swap.',
+    'Gamified MemeCoin LaunchPad on PulseChain... More To Follow. Fair launches with bonding curves.',
   keywords: ['PulseChain', 'memecoin', 'launchpad', 'bonding curve', 'DeFi', 'PUMP.FUD'],
   metadataBase: new URL('https://pump-fud-ui.vercel.app'),
   openGraph: {
-    title: 'PUMP.FUD | Memecoin Launchpad on PulseChain',
-    description: 'Launch memecoins on PulseChain with fair bonding curves. Auto-graduation to PulseX V2 & Paisley Swap Smart Router.',
-    url: 'https://pump-fud-ui.vercel.app',
+    title: 'PUMP.FUD | Gamified MemeCoin LaunchPad',
+    description: 'Gamified MemeCoin LaunchPad on PulseChain... More To Follow. Fair launches with bonding curves.',
+    url: 'https://pump-fud-ui.vercel.app/?ref=31B8F9A8',
     siteName: 'PUMP.FUD',
     images: [
       {
-        url: '/og-image.jpg',
+        url: '/pump-fud-share.jpg',
         width: 1200,
-        height: 1200,
-        alt: 'PUMP.FUD - Memecoin Launchpad',
+        height: 675,
+        alt: 'PUMP.FUD - Memecoin Launchpad on PulseChain',
       },
     ],
     locale: 'en_US',
@@ -50,9 +50,15 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'PUMP.FUD | Memecoin Launchpad on PulseChain',
-    description: 'Launch memecoins on PulseChain with fair bonding curves. Auto-graduation to PulseX V2 & Paisley Swap Smart Router.',
-    images: ['/og-image.jpg'],
+    title: 'PUMP.FUD | Gamified MemeCoin LaunchPad',
+    description: 'Gamified MemeCoin LaunchPad on PulseChain... More To Follow. Fair launches with bonding curves.',
+    site: '@PUMPFUDPLS',
+    creator: '@PUMPFUDPLS',
+    images: ['/pump-fud-share.jpg'],
+  },
+  other: {
+    'telegram:channel': 'https://t.me/PUMP_dot_FUD',
+    'twitch:channel': 'https://twitch.tv/pumpfud',
   },
 };
 

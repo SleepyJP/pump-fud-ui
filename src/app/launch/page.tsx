@@ -51,6 +51,7 @@ export default function LaunchPage() {
   const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess, data: receipt, error: txError } = useWaitForTransactionReceipt({ hash });
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const [hasLaunched, setHasLaunched] = useState(false); // Prevent double-click
 
   // Log errors
   useEffect(() => {
@@ -68,7 +69,10 @@ export default function LaunchPage() {
   }, [txError]);
 
   const handleLaunch = () => {
-    if (!name || !symbol || !CONTRACTS.FACTORY) return;
+    if (!name || !symbol || !CONTRACTS.FACTORY || hasLaunched) return;
+
+    // Lock immediately to prevent double-click
+    setHasLaunched(true);
 
     // Clear previous errors
     setLaunchError(null);
@@ -352,7 +356,7 @@ export default function LaunchPage() {
                   <input
                     type="text"
                     value={symbol}
-                    onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                    onChange={(e) => setSymbol(e.target.value)}
                     placeholder="TICKER"
                     maxLength={10}
                     style={inputStyle}
@@ -726,23 +730,23 @@ export default function LaunchPage() {
             {isConnected ? (
               <button
                 onClick={handleLaunch}
-                disabled={!name || !symbol || isPending || isConfirming}
+                disabled={!name || !symbol || isPending || isConfirming || isSuccess || hasLaunched}
                 style={{
                   width: '100%',
                   padding: '18px',
                   borderRadius: '12px',
-                  background: (!name || !symbol || isPending || isConfirming)
+                  background: (!name || !symbol || isPending || isConfirming || isSuccess || hasLaunched)
                     ? 'linear-gradient(135deg, #333 0%, #222 100%)'
                     : 'linear-gradient(135deg, #b8860b 0%, #daa520 50%, #b8860b 100%)',
                   border: '2px solid rgba(255,215,0,0.5)',
-                  color: (!name || !symbol || isPending || isConfirming) ? '#666' : '#000',
+                  color: (!name || !symbol || isPending || isConfirming || isSuccess || hasLaunched) ? '#666' : '#000',
                   fontFamily: 'Cinzel, serif',
                   fontWeight: 700,
                   fontSize: '16px',
                   letterSpacing: '0.15em',
                   textTransform: 'uppercase',
-                  cursor: (!name || !symbol || isPending || isConfirming) ? 'not-allowed' : 'pointer',
-                  boxShadow: (!name || !symbol || isPending || isConfirming)
+                  cursor: (!name || !symbol || isPending || isConfirming || isSuccess || hasLaunched) ? 'not-allowed' : 'pointer',
+                  boxShadow: (!name || !symbol || isPending || isConfirming || isSuccess || hasLaunched)
                     ? 'none'
                     : '0 0 40px rgba(255,215,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3)',
                   transition: 'all 0.3s ease',

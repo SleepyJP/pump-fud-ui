@@ -5,8 +5,9 @@ import { parseAbi } from 'viem';
 // ═══════════════════════════════════════════════════════════════════
 
 export const REFERRAL_CONFIG = {
-  // Default code - goes to treasury
-  DEFAULT_CODE: 'PUMPFUD',
+  // Default code - SleepyJ's referral (HARDCODED - use this in all marketing/bots/telegram)
+  // Marketing link: https://pump-fud-ui.vercel.app/?ref=31B8F9A8
+  DEFAULT_CODE: '31B8F9A8',
 
   // Treasury receives referral fees when no code provided
   TREASURY: '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B' as const,

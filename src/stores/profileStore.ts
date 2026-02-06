@@ -11,6 +11,8 @@ export interface UserProfile {
     website?: string;
   };
   updatedAt: number;
+  // Track if synced with on-chain
+  onChainSynced?: boolean;
 }
 
 interface ProfileState {
@@ -23,8 +25,11 @@ interface ProfileState {
   // Get profile for address
   getProfile: (address: string) => UserProfile | null;
 
-  // Update profile for connected wallet
+  // Update profile for connected wallet (local cache only)
   setProfile: (address: string, profile: Partial<UserProfile>) => void;
+
+  // Update profile from on-chain data
+  setProfileFromChain: (address: string, profile: UserProfile) => void;
 
   // Clear profile
   clearProfile: (address: string) => void;
@@ -36,6 +41,7 @@ const DEFAULT_PROFILE: UserProfile = {
   avatarUrl: '',
   socialLinks: {},
   updatedAt: 0,
+  onChainSynced: false,
 };
 
 export const useProfileStore = create<ProfileState>()(
@@ -61,11 +67,26 @@ export const useProfileStore = create<ProfileState>()(
               ...state.profiles[key],
               ...profile,
               updatedAt: Date.now(),
+              onChainSynced: false, // Mark as needing sync
             },
           };
           console.log('[ProfileStore] New profiles state:', newProfiles);
           return { profiles: newProfiles };
         });
+      },
+
+      setProfileFromChain: (address: string, profile: UserProfile) => {
+        const key = address.toLowerCase();
+        console.log('[ProfileStore] Setting profile from chain:', key, profile);
+        set((state) => ({
+          profiles: {
+            ...state.profiles,
+            [key]: {
+              ...profile,
+              onChainSynced: true,
+            },
+          },
+        }));
       },
 
       clearProfile: (address: string) => {
@@ -83,8 +104,7 @@ export const useProfileStore = create<ProfileState>()(
         console.log('[ProfileStore] Hydrated from localStorage:', state?.profiles);
         state?.setHasHydrated(true);
       },
-      // Ensure version for migrations
-      version: 1,
+      version: 2, // Bump version for migration
     }
   )
 );
@@ -93,3 +113,53 @@ export const useProfileStore = create<ProfileState>()(
 export const useProfileHydration = () => {
   return useProfileStore((state) => state._hasHydrated);
 };
+
+// ProfileRegistry contract address
+export const PROFILE_REGISTRY_ADDRESS = '0x0b0489332D9Cba8609DE2EaA31ecD36D0bb6c2E1';
+
+// ProfileRegistry ABI (minimal for reading/writing)
+export const PROFILE_REGISTRY_ABI = [
+  {
+    name: 'setProfile',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'displayName', type: 'string' },
+      { name: 'bio', type: 'string' },
+      { name: 'avatarUrl', type: 'string' },
+      { name: 'twitter', type: 'string' },
+      { name: 'telegram', type: 'string' },
+      { name: 'website', type: 'string' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'getProfile',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'user', type: 'address' }],
+    outputs: [
+      { name: 'displayName', type: 'string' },
+      { name: 'bio', type: 'string' },
+      { name: 'avatarUrl', type: 'string' },
+      { name: 'twitter', type: 'string' },
+      { name: 'telegram', type: 'string' },
+      { name: 'website', type: 'string' },
+      { name: 'updatedAt', type: 'uint256' },
+    ],
+  },
+  {
+    name: 'hasProfile',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '', type: 'address' }],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'clearProfile',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [],
+  },
+] as const;

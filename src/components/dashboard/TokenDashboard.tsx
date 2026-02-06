@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useReadContract } from 'wagmi';
+import { useReadContract, useAccount } from 'wagmi';
 import { TOKEN_ABI } from '@/config/abis';
 import { CONSTANTS } from '@/config/wagmi';
-import { X, Gift, Flame, Copy, Check, ExternalLink, Twitter, Send, Globe } from 'lucide-react';
+import { X, Gift, Flame, Copy, Check, ExternalLink, Twitter, Send, Globe, MessageCircle, Clipboard, Maximize2, Minimize2, BarChart3 } from 'lucide-react';
 
 // Component imports
 import { TokenImageInfo } from './TokenImageInfo';
@@ -14,6 +14,10 @@ import { TransactionFeed } from './TransactionFeed';
 import { LiveChat } from './LiveChat';
 import { MessageBoard } from './MessageBoard';
 import { HoldersPanel } from './HoldersPanel';
+import { TaxTokenStats } from './TaxTokenStats';
+import { RewardsClaimPanel } from './RewardsClaimPanel';
+import { useTaxTokenData } from '@/hooks/useTaxTokenData';
+import { REWARD_TOKEN_INFO, type RewardTokenOption, REWARD_TOKEN_ADDRESSES } from '@/types/taxToken';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEXSCREENER-STYLE LAYOUT - CLEAN AND FUNCTIONAL
@@ -40,6 +44,36 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
   const [mounted, setMounted] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
+  const [expandedPanel, setExpandedPanel] = useState<'chat' | 'board' | null>(null);
+
+  const { address: userAddress, isConnected } = useAccount();
+
+  // Tax token data (for fee-on-transfer tokens)
+  const {
+    isTaxToken,
+    taxConfig,
+    stats: taxStats,
+    pendingRewards,
+    totalClaimed,
+    canClaim,
+    refetch: refetchRewards,
+  } = useTaxTokenData(tokenAddress);
+
+  // State for tab view (for tax tokens)
+  const [activeTab, setActiveTab] = useState<'overview' | 'tax' | 'holders'>('overview');
+
+  // Get reward token symbol
+  const rewardTokenSymbol = useMemo(() => {
+    if (!taxConfig?.rewardToken) return 'PLS';
+    const rewardAddr = taxConfig.rewardToken.toLowerCase();
+    for (const [key, addr] of Object.entries(REWARD_TOKEN_ADDRESSES)) {
+      if ((addr as string).toLowerCase() === rewardAddr) {
+        return REWARD_TOKEN_INFO[key as RewardTokenOption].symbol;
+      }
+    }
+    return 'TOKEN';
+  }, [taxConfig]);
 
   // Get token name
   const { data: name } = useReadContract({
@@ -96,6 +130,22 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
     functionName: 'plsReserve',
     query: { enabled: !!tokenAddress },
   });
+
+  // Get user's token balance for 1% check
+  const { data: userBalance } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'balanceOf',
+    args: userAddress ? [userAddress] : undefined,
+    query: { enabled: !!tokenAddress && !!userAddress },
+  });
+
+  // Calculate if user holds 1% of supply
+  const onePercentThreshold = totalSupply ? (totalSupply as bigint) / 100n : 0n;
+  const hasOnePercent = userBalance && totalSupply && (userBalance as bigint) >= onePercentThreshold;
+  const holdingPercent = userBalance && totalSupply
+    ? Number((userBalance as bigint) * 10000n / (totalSupply as bigint)) / 100
+    : 0;
 
   // Bonding progress calculation
   const GRADUATION_THRESHOLD = CONSTANTS.GRADUATION_THRESHOLD;
@@ -170,6 +220,86 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* PANEL CONTROL HEADER */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      <div className="px-4 py-2 border-b border-gray-800 bg-black/50 flex items-center gap-3">
+        {/* Live Chat Button */}
+        <button
+          onClick={() => setExpandedPanel(expandedPanel === 'chat' ? null : 'chat')}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${
+            hasOnePercent
+              ? 'bg-[#d6ffe0]/20 text-[#d6ffe0] border border-[#d6ffe0]/50 shadow-[0_0_10px_rgba(214,255,224,0.3)]'
+              : 'bg-gray-900 text-gray-500 border border-gray-700'
+          } ${expandedPanel === 'chat' ? 'ring-2 ring-[#d6ffe0]' : ''}`}
+        >
+          <MessageCircle size={14} className={hasOnePercent ? 'text-[#d6ffe0]' : 'text-gray-500'} />
+          LIVE CHAT
+          {expandedPanel === 'chat' ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+        </button>
+
+        {/* Message Board Button */}
+        <button
+          onClick={() => setExpandedPanel(expandedPanel === 'board' ? null : 'board')}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${
+            hasOnePercent
+              ? 'bg-[#d6ffe0]/20 text-[#d6ffe0] border border-[#d6ffe0]/50 shadow-[0_0_10px_rgba(214,255,224,0.3)]'
+              : 'bg-gray-900 text-gray-500 border border-gray-700'
+          } ${expandedPanel === 'board' ? 'ring-2 ring-[#d6ffe0]' : ''}`}
+        >
+          <Clipboard size={14} className={hasOnePercent ? 'text-[#d6ffe0]' : 'text-gray-500'} />
+          MESSAGE BOARD
+          {expandedPanel === 'board' ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+        </button>
+
+        {/* Holding Status */}
+        {isConnected && (
+          <span className={`ml-auto text-[10px] font-mono ${hasOnePercent ? 'text-[#d6ffe0]' : 'text-gray-500'}`}>
+            {hasOnePercent
+              ? `✓ ${holdingPercent.toFixed(2)}% holder - chat unlocked`
+              : `${holdingPercent.toFixed(2)}% (need 1% to chat free)`
+            }
+          </span>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* EXPANDED PANEL OVERLAY */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {expandedPanel && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8">
+          <div className="w-full max-w-2xl h-[80vh] bg-gradient-to-br from-gray-900 to-black border border-[#d6ffe0]/30 rounded-xl overflow-hidden flex flex-col">
+            {/* Expanded Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#d6ffe0]/20 bg-black/50">
+              <div className="flex items-center gap-2">
+                {expandedPanel === 'chat' ? (
+                  <MessageCircle size={18} className="text-[#d6ffe0]" />
+                ) : (
+                  <Clipboard size={18} className="text-[#d6ffe0]" />
+                )}
+                <span className="font-mono text-[#d6ffe0] font-bold">
+                  {expandedPanel === 'chat' ? 'LIVE CHAT' : 'MESSAGE BOARD'}
+                </span>
+              </div>
+              <button
+                onClick={() => setExpandedPanel(null)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {/* Expanded Content */}
+            <div className="flex-1 overflow-hidden">
+              {expandedPanel === 'chat' ? (
+                <LiveChat tokenAddress={tokenAddress} />
+              ) : (
+                <MessageBoard tokenAddress={tokenAddress} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
       {/* MAIN CONTENT - 3 Columns */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       <div className="flex flex-1 min-h-0">
@@ -230,7 +360,16 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
             {/* Name & Symbol */}
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-[#d6ffe0] font-bold text-lg">{(name as string) || '...'}</h2>
+                <h2 className="font-display font-bold text-lg">
+                  {(name as string)?.includes('PUMP') ? (
+                    <>
+                      <span className="text-[#d6ffe0]">PUMP</span>
+                      <span className="text-white">.FUD</span>
+                    </>
+                  ) : (
+                    <span className="text-[#d6ffe0]">{(name as string) || '...'}</span>
+                  )}
+                </h2>
                 <span className="text-gray-400 text-xs font-mono">${(symbol as string) || '...'}</span>
               </div>
               {/* Status Badge */}
@@ -286,21 +425,110 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
                 )}
               </div>
             )}
+
+            {/* Tax Token Badge */}
+            {isTaxToken && (
+              <div className="mt-2 flex items-center gap-1 px-2 py-1 bg-purple-500/20 text-purple-300 text-[10px] font-mono rounded-full w-fit">
+                <Gift size={10} />
+                TAX TOKEN
+              </div>
+            )}
           </div>
 
-          {/* Trade Panel - Main focus */}
-          <div className="flex-[3] min-h-0 overflow-y-auto border-b border-gray-800">
-            <TradePanel tokenAddress={tokenAddress} tokenSymbol={(symbol as string) || 'TOKEN'} />
-          </div>
-          {/* Holders - Shorter */}
-          <div className="flex-[2] min-h-0 overflow-y-auto">
-            <HoldersPanel
-              tokenAddress={tokenAddress}
-              tokenSymbol={(symbol as string) || 'TOKEN'}
-              totalSupply={totalSupply as bigint}
-              creator={creator as `0x${string}`}
-            />
-          </div>
+          {/* Tab Navigation for Tax Tokens */}
+          {isTaxToken && (
+            <div className="flex border-b border-gray-800 bg-black/30">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`flex-1 py-2 text-xs font-mono transition-all ${
+                  activeTab === 'overview'
+                    ? 'text-[#d6ffe0] border-b-2 border-[#d6ffe0]'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                TRADE
+              </button>
+              <button
+                onClick={() => setActiveTab('tax')}
+                className={`flex-1 py-2 text-xs font-mono transition-all ${
+                  activeTab === 'tax'
+                    ? 'text-[#d6ffe0] border-b-2 border-[#d6ffe0]'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                REWARDS
+              </button>
+              <button
+                onClick={() => setActiveTab('holders')}
+                className={`flex-1 py-2 text-xs font-mono transition-all ${
+                  activeTab === 'holders'
+                    ? 'text-[#d6ffe0] border-b-2 border-[#d6ffe0]'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                HOLDERS
+              </button>
+            </div>
+          )}
+
+          {/* Tab Content */}
+          {isTaxToken && activeTab === 'tax' && taxConfig ? (
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+              {/* Rewards Claim Panel */}
+              <RewardsClaimPanel
+                tokenAddress={tokenAddress}
+                pendingRewards={pendingRewards}
+                totalClaimed={totalClaimed}
+                rewardTokenSymbol={rewardTokenSymbol}
+                canClaim={canClaim}
+                graduated={graduated as boolean}
+                onClaimSuccess={refetchRewards}
+              />
+              {/* Tax Stats */}
+              <TaxTokenStats
+                tokenAddress={tokenAddress}
+                taxConfig={taxConfig}
+                stats={taxStats || undefined}
+                graduated={graduated as boolean}
+                tokenSymbol={(symbol as string) || 'TOKEN'}
+                rewardTokenSymbol={rewardTokenSymbol}
+              />
+            </div>
+          ) : isTaxToken && activeTab === 'holders' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <HoldersPanel
+                tokenAddress={tokenAddress}
+                tokenSymbol={(symbol as string) || 'TOKEN'}
+                totalSupply={totalSupply as bigint}
+                creator={creator as `0x${string}`}
+                isTaxToken={true}
+                rewardTokenSymbol={rewardTokenSymbol}
+              />
+            </div>
+          ) : (
+            <>
+              {/* Trade Panel - Primary action, always visible */}
+              <div className="flex-shrink-0 border-b border-gray-800">
+                <TradePanel
+                  tokenAddress={tokenAddress}
+                  tokenSymbol={(symbol as string) || 'TOKEN'}
+                  graduated={graduated as boolean ?? false}
+                />
+              </div>
+
+              {/* Holders - Below Trade, Pump.Tires style, takes remaining space */}
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <HoldersPanel
+                  tokenAddress={tokenAddress}
+                  tokenSymbol={(symbol as string) || 'TOKEN'}
+                  totalSupply={totalSupply as bigint}
+                  creator={creator as `0x${string}`}
+                  isTaxToken={isTaxToken}
+                  rewardTokenSymbol={isTaxToken ? rewardTokenSymbol : undefined}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

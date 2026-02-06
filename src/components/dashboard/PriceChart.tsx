@@ -25,6 +25,8 @@ import {
   Settings,
   ChevronDown,
   X,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 
 interface TradeData {
@@ -75,9 +77,9 @@ const SCALE_MODES: { value: ScaleMode; label: string }[] = [
 ];
 
 // Settings version - increment to force reset old cached settings
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 
-// Default settings - TradingView/DEX Screener style
+// Default settings - DEX Screener style
 const DEFAULT_SETTINGS = {
   version: SETTINGS_VERSION,
   upColor: '#26a69a', // TradingView default green
@@ -87,6 +89,12 @@ const DEFAULT_SETTINGS = {
   autoFit: true,
   invertScale: false,
   scaleOnLeft: false,
+  lockScale: false, // DEX Screener lock - prevents auto-scale on new candles
+  // DEX Screener style options
+  scalePriceOnly: true, // Scale price chart only (not time)
+  showCountdown: true, // Countdown to bar close
+  showIndicators: false, // Indicators on price chart
+  showGoldenHour: true, // Golden hour color (first hour)
 };
 
 // Load settings from localStorage - reset if version changed
@@ -132,8 +140,14 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
   const [autoFit, setAutoFit] = useState(true);
   const [invertScale, setInvertScale] = useState(false);
   const [scaleOnLeft, setScaleOnLeft] = useState(false);
+  const [lockScale, setLockScale] = useState(false); // DEX Screener style lock
+  const [scalePriceOnly, setScalePriceOnly] = useState(true);
+  const [showCountdown, setShowCountdown] = useState(true);
+  const [showIndicators, setShowIndicators] = useState(false);
+  const [showGoldenHour, setShowGoldenHour] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showChartTypeMenu, setShowChartTypeMenu] = useState(false);
+  const [countdown, setCountdown] = useState<string>('');
 
   // Load settings on mount
   useEffect(() => {
@@ -145,6 +159,11 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
     setAutoFit(settings.autoFit ?? true);
     setInvertScale(settings.invertScale ?? false);
     setScaleOnLeft(settings.scaleOnLeft ?? false);
+    setLockScale(settings.lockScale ?? false);
+    setScalePriceOnly(settings.scalePriceOnly ?? true);
+    setShowCountdown(settings.showCountdown ?? true);
+    setShowIndicators(settings.showIndicators ?? false);
+    setShowGoldenHour(settings.showGoldenHour ?? true);
   }, []);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -281,7 +300,37 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
     return () => clearInterval(interval);
   }, [isLive, tokenAddress, fetchTrades, refetchPrice]);
 
-  // Build candle data with buy/sell tracking - NO gap filling (like DEX Screener)
+  // Countdown to bar close
+  useEffect(() => {
+    if (!showCountdown) {
+      setCountdown('');
+      return;
+    }
+    const updateCountdown = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const tfSeconds = selectedTimeframe.seconds;
+      const currentBarStart = Math.floor(now / tfSeconds) * tfSeconds;
+      const nextBarStart = currentBarStart + tfSeconds;
+      const remaining = nextBarStart - now;
+
+      if (remaining >= 3600) {
+        const h = Math.floor(remaining / 3600);
+        const m = Math.floor((remaining % 3600) / 60);
+        setCountdown(`${h}h ${m}m`);
+      } else if (remaining >= 60) {
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        setCountdown(`${m}:${s.toString().padStart(2, '0')}`);
+      } else {
+        setCountdown(`0:${remaining.toString().padStart(2, '0')}`);
+      }
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [showCountdown, selectedTimeframe.seconds]);
+
+  // Build proper OHLC candles aggregated by timeframe
   const buildCandles = useCallback((data: TradeData[], tfSeconds: number): CandleData[] => {
     if (data.length === 0) return [];
 
@@ -313,8 +362,47 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
       }
     }
 
-    // Sort candles by time - NO gap filling, show only actual trading data
-    return Array.from(candles.values()).sort((a, b) => (a.time as number) - (b.time as number));
+    // Sort candles by time
+    const sortedCandles = Array.from(candles.values()).sort((a, b) => (a.time as number) - (b.time as number));
+
+    // Fill small gaps between candles (max 5 periods) - prevents huge flat lines
+    if (sortedCandles.length < 2) return sortedCandles;
+
+    const MAX_GAP_FILL = 5; // Only fill gaps up to 5 periods
+    const filledCandles: CandleData[] = [];
+
+    for (let i = 0; i < sortedCandles.length; i++) {
+      const candle = sortedCandles[i];
+
+      // If not first candle, fill small gaps only
+      if (i > 0) {
+        const prevCandle = sortedCandles[i - 1];
+        const prevTime = prevCandle.time as number;
+        const currTime = candle.time as number;
+        const gapPeriods = Math.floor((currTime - prevTime) / tfSeconds) - 1;
+
+        // Only fill if gap is small enough
+        if (gapPeriods > 0 && gapPeriods <= MAX_GAP_FILL) {
+          let gapTime = prevTime + tfSeconds;
+          while (gapTime < currTime) {
+            filledCandles.push({
+              time: gapTime as Time,
+              open: prevCandle.close,
+              high: prevCandle.close,
+              low: prevCandle.close,
+              close: prevCandle.close,
+              buyVolume: 0,
+              sellVolume: 0,
+            });
+            gapTime += tfSeconds;
+          }
+        }
+      }
+
+      filledCandles.push(candle);
+    }
+
+    return filledCandles;
   }, []);
 
   // Initialize chart - MUST depend on trades.length so it runs when container appears
@@ -486,18 +574,20 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
     candleSeriesRef.current = series as ISeriesApi<'Candlestick'>;
 
     // Save settings
-    saveChartSettings({ version: SETTINGS_VERSION, chartType, upColor, downColor, scaleMode, autoFit, invertScale, scaleOnLeft });
-  }, [chartType, upColor, downColor, scaleMode, autoFit, invertScale, scaleOnLeft, trades.length]);
+    saveChartSettings({ version: SETTINGS_VERSION, chartType, upColor, downColor, scaleMode, autoFit, invertScale, scaleOnLeft, lockScale, scalePriceOnly, showCountdown, showIndicators, showGoldenHour });
+  }, [chartType, upColor, downColor, scaleMode, autoFit, invertScale, scaleOnLeft, lockScale, scalePriceOnly, showCountdown, showIndicators, showGoldenHour, trades.length]);
 
   // Apply scale settings when they change
   useEffect(() => {
     if (!chartRef.current) return;
 
-    // Apply scale mode and invert
+    // Apply scale mode, invert, and lock
+    // When locked, autoScale=false prevents chart from auto-adjusting Y axis
     chartRef.current.priceScale('right').applyOptions({
       mode: scaleMode === 'logarithmic' ? 1 : 0, // 0 = normal, 1 = logarithmic
       invertScale: invertScale,
       visible: !scaleOnLeft,
+      autoScale: !lockScale, // DEX Screener lock: false = locked (no auto-adjust)
     });
 
     // Left scale visibility
@@ -505,13 +595,14 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
       visible: scaleOnLeft,
       mode: scaleMode === 'logarithmic' ? 1 : 0,
       invertScale: invertScale,
+      autoScale: !lockScale,
     });
 
-    // If autoFit is enabled, fit content when data changes
-    if (autoFit) {
+    // If autoFit is enabled and not locked, fit content when data changes
+    if (autoFit && !lockScale) {
       chartRef.current.timeScale().fitContent();
     }
-  }, [scaleMode, invertScale, scaleOnLeft, autoFit]);
+  }, [scaleMode, invertScale, scaleOnLeft, autoFit, lockScale]);
 
   // Update chart when trades or timeframe changes
   // COLOR BY BUY/SELL DOMINANCE
@@ -520,6 +611,20 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
 
     const candles = buildCandles(trades, selectedTimeframe.seconds);
     console.log('[PriceChart] Setting', candles.length, 'candles');
+    // Debug: Show candle price range
+    if (candles.length > 0) {
+      const prices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+      const minP = Math.min(...prices);
+      const maxP = Math.max(...prices);
+      console.log('[PriceChart] Price range:', minP.toExponential(4), 'to', maxP.toExponential(4));
+      console.log('[PriceChart] First 5 candles:', candles.slice(0, 5).map(c => ({
+        time: c.time,
+        o: c.open.toExponential(4),
+        h: c.high.toExponential(4),
+        l: c.low.toExponential(4),
+        c: c.close.toExponential(4),
+      })));
+    }
 
     // Format data based on chart type
     if (chartType === 'line' || chartType === 'area') {
@@ -531,15 +636,40 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
         }))
       );
     } else {
-      // Candles/Hollow - DEX Screener style: standard OHLC (colors from series options)
+      // Candles/Hollow - DEX Screener style
+      // Add minimum visual body when open=close (single trade = doji becomes visible candle)
       candleSeriesRef.current.setData(
-        candles.map((c) => ({
-          time: c.time,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }))
+        candles.map((c, idx) => {
+          const midPrice = (c.open + c.close) / 2;
+          // If candle has no body (open=close), create a small visual body (0.5% spread)
+          const minSpread = midPrice * 0.005;
+          let open = c.open;
+          let close = c.close;
+
+          if (Math.abs(c.close - c.open) < minSpread) {
+            // Determine direction: use buy/sell volume, or compare to previous candle
+            const isBullish = c.buyVolume > c.sellVolume ||
+              (c.buyVolume === c.sellVolume && idx > 0 && c.close >= candles[idx - 1].close);
+
+            if (isBullish) {
+              // Green candle: close above open
+              open = midPrice - minSpread / 2;
+              close = midPrice + minSpread / 2;
+            } else {
+              // Red candle: close below open
+              open = midPrice + minSpread / 2;
+              close = midPrice - minSpread / 2;
+            }
+          }
+
+          return {
+            time: c.time,
+            open,
+            high: Math.max(c.high, open, close),
+            low: Math.min(c.low, open, close),
+            close,
+          };
+        })
       );
     }
 
@@ -598,20 +728,28 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
 
       {/* Timeframes + Chart Type + Settings */}
       <div className="flex items-center justify-between px-4 py-1.5 border-b border-gray-800">
-        <div className="flex items-center gap-1">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.label}
-              onClick={() => setSelectedTimeframe(tf)}
-              className={`px-2 py-0.5 text-xs font-mono rounded ${
-                selectedTimeframe.label === tf.label
-                  ? 'bg-[#26a69a] text-black font-bold'
-                  : 'text-gray-400 hover:text-[#26a69a]'
-              }`}
-            >
-              {tf.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            {TIMEFRAMES.map((tf) => (
+              <button
+                key={tf.label}
+                onClick={() => setSelectedTimeframe(tf)}
+                className={`px-2 py-0.5 text-xs font-mono rounded ${
+                  selectedTimeframe.label === tf.label
+                    ? 'bg-[#26a69a] text-black font-bold'
+                    : 'text-gray-400 hover:text-[#26a69a]'
+                }`}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+          {/* Countdown to bar close */}
+          {showCountdown && countdown && (
+            <span className="text-xs font-mono text-gray-500 border-l border-gray-700 pl-2">
+              {countdown}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -644,14 +782,30 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
             )}
           </div>
 
+          {/* Scale Lock Button - DEX Screener style */}
+          <button
+            onClick={() => setLockScale(!lockScale)}
+            title={lockScale ? "Unlock price scale (auto-adjust)" : "Lock price scale (fixed Y-axis)"}
+            className={`p-1 rounded hover:bg-gray-800 ${
+              lockScale ? 'text-[#26a69a]' : 'text-gray-400 hover:text-[#26a69a]'
+            }`}
+          >
+            {lockScale ? <Lock size={14} /> : <Unlock size={14} />}
+          </button>
+
           {/* Reset View Button */}
           <button
             onClick={() => {
               if (chartRef.current) {
                 chartRef.current.timeScale().fitContent();
+                // Also unlock and reset price scale
+                if (lockScale) {
+                  setLockScale(false);
+                }
+                chartRef.current.priceScale('right').applyOptions({ autoScale: true });
               }
             }}
-            title="Reset zoom/pan"
+            title="Reset zoom/pan and unlock scale"
             className="px-2 py-0.5 text-xs font-mono text-gray-400 hover:text-[#26a69a] rounded hover:bg-gray-800"
           >
             Reset
@@ -802,6 +956,63 @@ export function PriceChart({ tokenAddress }: PriceChartProps) {
                   className={`w-10 h-5 rounded-full transition-colors ${scaleOnLeft ? 'bg-[#26a69a]' : 'bg-gray-700'}`}
                 >
                   <div className={`w-4 h-4 rounded-full bg-white transition-transform mx-0.5 ${scaleOnLeft ? 'translate-x-5' : ''}`} />
+                </button>
+              </label>
+
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-xs text-gray-400 font-mono">Lock price scale</span>
+                <button
+                  onClick={() => setLockScale(!lockScale)}
+                  className={`w-10 h-5 rounded-full transition-colors ${lockScale ? 'bg-[#26a69a]' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white transition-transform mx-0.5 ${lockScale ? 'translate-x-5' : ''}`} />
+                </button>
+              </label>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-gray-700 my-4" />
+
+            {/* DEX Screener Style Options */}
+            <h4 className="text-white font-mono text-sm mb-3">Chart Options</h4>
+            <div className="space-y-2 mb-4">
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-xs text-gray-400 font-mono">Scale price chart only</span>
+                <button
+                  onClick={() => setScalePriceOnly(!scalePriceOnly)}
+                  className={`w-10 h-5 rounded-full transition-colors ${scalePriceOnly ? 'bg-[#26a69a]' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white transition-transform mx-0.5 ${scalePriceOnly ? 'translate-x-5' : ''}`} />
+                </button>
+              </label>
+
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-xs text-gray-400 font-mono">Countdown to bar close</span>
+                <button
+                  onClick={() => setShowCountdown(!showCountdown)}
+                  className={`w-10 h-5 rounded-full transition-colors ${showCountdown ? 'bg-[#26a69a]' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white transition-transform mx-0.5 ${showCountdown ? 'translate-x-5' : ''}`} />
+                </button>
+              </label>
+
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-xs text-gray-400 font-mono">Indicators on price chart</span>
+                <button
+                  onClick={() => setShowIndicators(!showIndicators)}
+                  className={`w-10 h-5 rounded-full transition-colors ${showIndicators ? 'bg-[#26a69a]' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white transition-transform mx-0.5 ${showIndicators ? 'translate-x-5' : ''}`} />
+                </button>
+              </label>
+
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-xs text-gray-400 font-mono">Golden hour color</span>
+                <button
+                  onClick={() => setShowGoldenHour(!showGoldenHour)}
+                  className={`w-10 h-5 rounded-full transition-colors ${showGoldenHour ? 'bg-[#26a69a]' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white transition-transform mx-0.5 ${showGoldenHour ? 'translate-x-5' : ''}`} />
                 </button>
               </label>
             </div>

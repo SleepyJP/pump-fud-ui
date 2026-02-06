@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useAccount, useReadContract, useReadContracts, useBalance } from 'wagmi';
+import { useAccount, useReadContract, useReadContracts, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -24,6 +24,9 @@ import {
   Globe,
   MessageCircle,
   Crown,
+  Loader2,
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -31,7 +34,7 @@ import { Input } from '@/components/ui/Input';
 import { FACTORY_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS } from '@/config/wagmi';
 import { formatAddress, formatPLS } from '@/lib/utils';
-import { useProfileStore, useProfileHydration } from '@/stores/profileStore';
+import { useProfileStore, useProfileHydration, PROFILE_REGISTRY_ADDRESS, PROFILE_REGISTRY_ABI } from '@/stores/profileStore';
 
 interface TokenInfo {
   address: `0x${string}`;
@@ -59,11 +62,71 @@ export default function ProfilePage() {
   const [editTwitter, setEditTwitter] = useState('');
   const [editTelegram, setEditTelegram] = useState('');
   const [editWebsite, setEditWebsite] = useState('');
+  const [isSavingToChain, setIsSavingToChain] = useState(false);
 
   // Profile store with hydration check
-  const { getProfile, setProfile } = useProfileStore();
+  const { getProfile, setProfile, setProfileFromChain } = useProfileStore();
   const hasHydrated = useProfileHydration();
   const profile = address && hasHydrated ? getProfile(address) : null;
+
+  // On-chain profile reading
+  const { data: onChainProfile, refetch: refetchOnChainProfile } = useReadContract({
+    address: PROFILE_REGISTRY_ADDRESS as `0x${string}`,
+    abi: PROFILE_REGISTRY_ABI,
+    functionName: 'getProfile',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+
+  // On-chain profile write
+  const { writeContract, data: writeHash, isPending: isWritePending, error: writeError } = useWriteContract();
+
+  // Wait for transaction
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash: writeHash,
+  });
+
+  // Sync on-chain profile to local store
+  useEffect(() => {
+    if (onChainProfile && address) {
+      const [displayName, bio, avatarUrl, twitter, telegram, website, updatedAt] = onChainProfile as [string, string, string, string, string, string, bigint];
+      // Only sync if on-chain profile has data (updatedAt > 0 means profile exists)
+      if (updatedAt > 0n) {
+        console.log('[Profile] Syncing from on-chain:', { displayName, bio, avatarUrl, twitter, telegram, website, updatedAt: Number(updatedAt) });
+        setProfileFromChain(address, {
+          displayName,
+          bio,
+          avatarUrl,
+          socialLinks: {
+            twitter: twitter || undefined,
+            telegram: telegram || undefined,
+            website: website || undefined,
+          },
+          updatedAt: Number(updatedAt) * 1000, // Convert to milliseconds
+          onChainSynced: true,
+        });
+      }
+    }
+  }, [onChainProfile, address, setProfileFromChain]);
+
+  // Handle transaction confirmation
+  useEffect(() => {
+    if (isConfirmed && writeHash) {
+      console.log('[Profile] Transaction confirmed:', writeHash);
+      setIsSavingToChain(false);
+      setIsEditing(false);
+      // Refetch on-chain profile
+      refetchOnChainProfile();
+    }
+  }, [isConfirmed, writeHash, refetchOnChainProfile]);
+
+  // Handle write errors
+  useEffect(() => {
+    if (writeError) {
+      console.error('[Profile] Write error:', writeError);
+      setIsSavingToChain(false);
+    }
+  }, [writeError]);
 
   // Get PLS balance
   const { data: plsBalance } = useBalance({
@@ -167,9 +230,13 @@ export default function ProfilePage() {
     setIsEditing(true);
   };
 
-  // Save profile
-  const saveProfile = () => {
+  // Save profile to blockchain
+  const saveProfileToChain = async () => {
     if (!address) return;
+
+    setIsSavingToChain(true);
+
+    // Save to local storage first (as cache)
     setProfile(address, {
       displayName: editName,
       bio: editBio,
@@ -180,7 +247,26 @@ export default function ProfilePage() {
         website: editWebsite || undefined,
       },
     });
-    setIsEditing(false);
+
+    // Write to blockchain
+    try {
+      writeContract({
+        address: PROFILE_REGISTRY_ADDRESS as `0x${string}`,
+        abi: PROFILE_REGISTRY_ABI,
+        functionName: 'setProfile',
+        args: [
+          editName || '',
+          editBio || '',
+          editAvatar || '',
+          editTwitter || '',
+          editTelegram || '',
+          editWebsite || '',
+        ],
+      });
+    } catch (err) {
+      console.error('[Profile] Failed to save to chain:', err);
+      setIsSavingToChain(false);
+    }
   };
 
   // Cancel editing
@@ -215,18 +301,43 @@ export default function ProfilePage() {
               // Edit Mode
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-display text-xl text-fud-green">Edit Profile</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="font-display text-xl text-fud-green">Edit Profile</h2>
+                    <span className="text-xs font-mono text-text-muted flex items-center gap-1">
+                      <Cloud size={12} className="text-fud-purple" />
+                      Saved on-chain permanently
+                    </span>
+                  </div>
                   <div className="flex gap-2">
-                    <Button onClick={cancelEditing} variant="secondary" className="gap-2">
+                    <Button onClick={cancelEditing} variant="secondary" className="gap-2" disabled={isSavingToChain || isWritePending || isConfirming}>
                       <X size={16} />
                       Cancel
                     </Button>
-                    <Button onClick={saveProfile} className="gap-2">
-                      <Save size={16} />
-                      Save
+                    <Button
+                      onClick={saveProfileToChain}
+                      className="gap-2"
+                      disabled={isSavingToChain || isWritePending || isConfirming}
+                    >
+                      {(isSavingToChain || isWritePending || isConfirming) ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          {isConfirming ? 'Confirming...' : 'Saving...'}
+                        </>
+                      ) : (
+                        <>
+                          <Save size={16} />
+                          Save On-Chain
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
+
+                {writeError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm font-mono">
+                    Failed to save: {writeError.message?.slice(0, 100) || 'Transaction rejected'}
+                  </div>
+                )}
 
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Left Column - Basic Info */}
@@ -353,6 +464,17 @@ export default function ProfilePage() {
                     <h1 className="font-display text-2xl text-fud-green">
                       {profile?.displayName || formatAddress(address!)}
                     </h1>
+                    {profile?.onChainSynced ? (
+                      <span className="flex items-center gap-1 text-xs font-mono text-fud-purple" title="Profile saved on-chain">
+                        <Cloud size={12} />
+                        On-Chain
+                      </span>
+                    ) : profile?.displayName ? (
+                      <span className="flex items-center gap-1 text-xs font-mono text-text-muted" title="Profile only saved locally">
+                        <CloudOff size={12} />
+                        Local
+                      </span>
+                    ) : null}
                     <button
                       onClick={copyAddress}
                       className="p-1.5 hover:bg-dark-secondary rounded transition-colors"

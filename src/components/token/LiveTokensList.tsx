@@ -174,11 +174,11 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
             <span className="text-text-muted font-mono text-sm">(loading...)</span>
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {[...Array(limit)].map((_, i) => (
             <Card key={i} variant="bordered" className="p-4 animate-pulse">
               <div className="flex gap-3">
-                <div className="w-16 h-16 bg-dark-tertiary rounded-lg" />
+                <div className="w-48 h-48 bg-dark-tertiary rounded-lg" />
                 <div className="flex-1 space-y-2">
                   <div className="h-5 bg-dark-tertiary rounded w-3/4" />
                   <div className="h-4 bg-dark-tertiary rounded w-1/2" />
@@ -218,18 +218,28 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {tokens.map((token) => {
           const progressPercent = getProgressPercent(token.plsReserve);
+          const shortAddress = `${token.address.slice(0, 6)}...${token.address.slice(-4)}`;
+          const isBumped = wasBumpedRecently(token.address, 30);
+          const isHot = bumpMap[token.address.toLowerCase()]?.isHot;
 
           return (
             <Link key={token.address} href={`/token/${token.address}`}>
               <Card
                 variant="bordered"
-                className="p-4 hover:border-fud-green/50 transition-all cursor-pointer group h-full"
+                className={`p-4 transition-all cursor-pointer group h-full ${
+                  isBumped
+                    ? 'border-fud-green/70 shadow-[0_0_30px_rgba(0,255,0,0.5)] animate-pulse'
+                    : 'hover:border-fud-green/50 hover:shadow-[0_0_25px_rgba(0,255,0,0.3)]'
+                }`}
               >
-                <div className="flex gap-3 mb-3">
-                  <div className="w-16 h-16 rounded-lg bg-dark-tertiary overflow-hidden flex items-center justify-center flex-shrink-0">
+                {/* VERTICAL LAYOUT - Image on top, info below */}
+
+                {/* HUGE IMAGE - 192x192px centered */}
+                <div className="w-full flex justify-center mb-4">
+                  <div className="w-48 h-48 rounded-xl bg-dark-tertiary overflow-hidden flex items-center justify-center border-2 border-fud-green/50 shadow-[0_0_30px_rgba(0,255,0,0.4)]">
                     {token.imageUri ? (
                       <img
                         src={token.imageUri}
@@ -238,75 +248,71 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                           (e.target as HTMLImageElement).parentElement!.innerHTML =
-                            '<span class="text-2xl">🚀</span>';
+                            '<span class="text-7xl">🚀</span>';
                         }}
                       />
                     ) : (
-                      <span className="text-2xl">🚀</span>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-display truncate group-hover:animate-glow">
-                      {token.name && token.name.includes('.') ? (
-                        <>
-                          <span className="text-fud-green" style={{ textShadow: '0 0 8px #d6ffe0' }}>
-                            {token.name.split('.')[0]}
-                          </span>
-                          <span className="text-white" style={{ textShadow: '0 0 8px #ffffff' }}>
-                            .{token.name.split('.').slice(1).join('.')}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-fud-green">{token.name}</span>
-                      )}
-                    </h3>
-                    <p className="text-white text-sm font-mono">{token.symbol}</p>
-                    {token.graduated && (
-                      <span className="inline-block mt-1 px-2 py-0.5 bg-fud-orange/20 text-fud-orange text-[10px] font-mono rounded">
-                        GRADUATED
-                      </span>
-                    )}
-                    {/* BUMP INDICATOR */}
-                    {!token.graduated && wasBumpedRecently(token.address, 30) && (
-                      <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-fud-green/30 text-fud-green text-[10px] font-mono rounded animate-pulse">
-                        <Zap size={10} /> BUMPED
-                      </span>
-                    )}
-                    {!token.graduated && bumpMap[token.address.toLowerCase()]?.isHot && (
-                      <span className="inline-flex items-center gap-1 mt-1 ml-1 px-2 py-0.5 bg-orange-500/30 text-orange-400 text-[10px] font-mono rounded">
-                        🔥 HOT
-                      </span>
+                      <span className="text-7xl">🚀</span>
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-mono">
+                {/* Name - HUGE and GLOWING */}
+                <h3 className="font-display text-2xl font-bold text-center truncate group-hover:drop-shadow-[0_0_15px_rgba(0,255,0,1)] transition-all drop-shadow-[0_0_6px_rgba(0,255,0,0.6)]">
+                  {token.name && token.name.includes('.') ? (
+                    <>
+                      <span className="text-fud-green-bright">{token.name.split('.')[0]}</span>
+                      <span className="text-white">.{token.name.split('.').slice(1).join('.')}</span>
+                    </>
+                  ) : (
+                    <span className="text-fud-green-bright">{token.name}</span>
+                  )}
+                </h3>
+
+                {/* Symbol - GIANT YELLOW */}
+                <p className="text-yellow-300 text-xl font-black font-mono tracking-wider text-center mt-1">${token.symbol}</p>
+
+                {/* Badges row - centered */}
+                <div className="flex flex-wrap gap-2 mt-3 justify-center">
+                  {token.graduated && (
+                    <span className="px-3 py-1 bg-fud-orange/30 text-fud-orange text-xs font-mono font-bold rounded-full border border-fud-orange/50">
+                      🎓 GRADUATED
+                    </span>
+                  )}
+                  {isBumped && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-fud-green/30 text-fud-green text-xs font-mono font-bold rounded-full animate-pulse">
+                      <Zap size={12} /> BUMPED
+                    </span>
+                  )}
+                  {isHot && (
+                    <span className="px-3 py-1 bg-orange-500/30 text-orange-400 text-xs font-mono font-bold rounded-full">
+                      🔥 HOT
+                    </span>
+                  )}
+                </div>
+
+                {/* Stats row */}
+                <div className="flex justify-center gap-6 mt-3 text-sm font-mono">
                   <div>
-                    <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
-                      token.graduated ? 'bg-fud-orange' : 'bg-red-500'
-                    }`} />
-                    <span className="text-text-muted">Reserve</span>
-                    <div className="text-text-secondary">{formatPLS(token.plsReserve)} PLS</div>
+                    <span className="text-text-muted">Reserve: </span>
+                    <span className="text-fud-green font-bold">{formatPLS(token.plsReserve)}</span>
                   </div>
                   <div>
-                    <Zap size={10} className="inline mr-1.5 text-fud-green" />
-                    <span className="text-text-muted">Last Activity</span>
-                    <div className={`${wasBumpedRecently(token.address, 60) ? 'text-fud-green' : 'text-text-secondary'}`}>
+                    <span className="text-text-muted">Activity: </span>
+                    <span className={isBumped ? 'text-fud-green font-bold' : 'text-text-secondary'}>
                       {getTimeSinceBump(token.address)}
-                    </div>
+                    </span>
                   </div>
                 </div>
 
+                {/* Progress bar - only if not graduated */}
                 {!token.graduated && (
-                  <div>
-                    <div className="flex justify-between text-[10px] font-mono mb-1">
-                      <span className="text-text-muted">Bonding Progress</span>
-                      <span className="text-fud-green">
-                        {progressPercent.toFixed(1)}% to BOND
-                      </span>
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs font-mono mb-1">
+                      <span className="text-text-muted">Progress</span>
+                      <span className="text-fud-green font-bold">{progressPercent.toFixed(1)}%</span>
                     </div>
-                    <div className="h-2 bg-dark-tertiary rounded-full overflow-hidden">
+                    <div className="h-3 bg-dark-tertiary rounded-full overflow-hidden border border-fud-green/30">
                       <div
                         className="h-full bg-gradient-to-r from-fud-green to-fud-green-bright transition-all duration-500"
                         style={{ width: `${progressPercent}%` }}
@@ -314,6 +320,13 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                     </div>
                   </div>
                 )}
+
+                {/* Contract address at bottom */}
+                <div className="mt-3 pt-2 border-t border-dark-tertiary text-center">
+                  <p className="text-xs font-mono text-text-muted">
+                    CA: <span className="text-text-secondary">{shortAddress}</span>
+                  </p>
+                </div>
               </Card>
             </Link>
           );

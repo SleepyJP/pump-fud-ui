@@ -32,22 +32,27 @@ export const GRADUATION_LIQUIDITY = {
   // LP tokens burned to dead address
 } as const;
 
-// Factory ABI - events we need to track
+// Factory ABI - events we need to track (V4 Factory)
+// CONFIRMED: TokenCreated(address indexed token, address indexed creator, string name, string symbol, address referrer)
+// Hash: 0xe7ccb755d59584cc03bd0ede36a43d0b698308216a1c6797e0b00e6bf5afefaf
 export const FACTORY_ABI = parseAbi([
-  'event TokenLaunched(uint256 indexed tokenId, address indexed tokenAddress, address indexed creator, string name, string symbol)',
-  'event TokenGraduated(uint256 indexed tokenId, address indexed tokenAddress, uint256 liquidityAmount, uint256 treasuryFee)',
-  'event TokenDelisted(uint256 indexed tokenId, address indexed tokenAddress, string reason)',
+  'event TokenCreated(address indexed token, address indexed creator, string name, string symbol, address referrer)',
+  'event InitialBuy(address indexed token, address indexed buyer, uint256 plsSpent, uint256 tokensReceived)',
 ]);
 
 // Token ABI - swap events
+// FIXED: TokenBought/TokenSold with correct signatures
 export const TOKEN_ABI = parseAbi([
-  'event Buy(address indexed buyer, uint256 plsIn, uint256 tokensOut, uint256 fee)',
-  'event Sell(address indexed seller, uint256 tokensIn, uint256 plsOut, uint256 fee)',
+  'event TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address indexed referrer)',
+  'event TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)',
   'event Transfer(address indexed from, address indexed to, uint256 value)',
   'function graduated() view returns (bool)',
+  'function deleted() view returns (bool)',
   'function plsReserve() view returns (uint256)',
   'function creator() view returns (address)',
   'function getCurrentPrice() view returns (uint256)',
+  'function name() view returns (string)',
+  'function symbol() view returns (string)',
 ]);
 
 // Chain config

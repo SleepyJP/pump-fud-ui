@@ -15,7 +15,7 @@ export function Footer() {
               <span className="font-display text-fud-green text-sm">PUMP.FUD</span>
             </div>
             <p className="text-text-muted text-[10px] font-mono leading-relaxed">
-              Memecoin launchpad on PulseChain. Fair launches with bonding curves.
+              Gamified MemeCoin Launch Pad on PulseChain. Fair launches with bonding curves.
             </p>
           </div>
 
@@ -37,11 +37,6 @@ export function Footer() {
                   Leaderboard
                 </Link>
               </li>
-              <li>
-                <Link href="/rewards" className="text-text-muted hover:text-fud-green text-xs font-mono transition-colors">
-                  Claim Rewards
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -51,16 +46,6 @@ export function Footer() {
               <li>
                 <a href="#" className="text-text-muted hover:text-fud-green text-xs font-mono transition-colors">
                   Documentation
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-text-muted hover:text-fud-green text-xs font-mono transition-colors">
-                  Smart Contracts
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-text-muted hover:text-fud-green text-xs font-mono transition-colors">
-                  API
                 </a>
               </li>
             </ul>
@@ -87,7 +72,7 @@ export function Footer() {
 
         <div className="mt-4 pt-4 border-t border-border-primary flex justify-center items-center">
           <p className="text-text-muted text-[10px] font-mono">
-            © 2024 PUMP.FUD
+            © 2026 PUMP.FUD
           </p>
         </div>
       </div>

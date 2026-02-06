@@ -42,6 +42,14 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
     query: { enabled: !!tokenAddress && !!address },
   });
 
+  // Get total supply to calculate 1% threshold
+  const { data: totalSupply } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'totalSupply',
+    query: { enabled: !!tokenAddress },
+  });
+
   // Paid board messages from contract
   const { data: paidMessages } = useReadContract({
     address: CONTRACTS.SUPERCHAT as `0x${string}`,
@@ -122,7 +130,12 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
     }
   };
 
-  const hasTokens = tokenBalance && tokenBalance > BigInt(0);
+  // User needs 1% of total supply to participate in board (free posts)
+  const onePercentThreshold = totalSupply ? (totalSupply as bigint) / 100n : 0n;
+  const hasEnoughTokens = tokenBalance && totalSupply && (tokenBalance as bigint) >= onePercentThreshold;
+  const holdingPercent = tokenBalance && totalSupply
+    ? Number((tokenBalance as bigint) * 10000n / (totalSupply as bigint)) / 100
+    : 0;
   const posts = allPosts();
 
   return (
@@ -157,31 +170,31 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
           posts.map((post) => (
             <div
               key={post.id}
-              className={`rounded-xl p-3 transition-all ${
+              className={`rounded-xl p-4 transition-all ${
                 post.pinned
-                  ? 'bg-gradient-to-r border-l-2'
+                  ? 'bg-gradient-to-r border-l-4'
                   : post.isPaid
-                  ? 'bg-gradient-to-r from-black/60 to-transparent border-l-2'
-                  : 'bg-black/30'
+                  ? 'bg-gradient-to-r from-black/70 to-black/40 border-l-4'
+                  : 'bg-black/50 border border-gray-800'
               }`}
               style={
                 post.isPaid
                   ? {
                       borderColor: getTierColor(post.tier || 3),
-                      background: `linear-gradient(135deg, ${getTierColor(post.tier || 3)}10, transparent)`,
+                      background: `linear-gradient(135deg, ${getTierColor(post.tier || 3)}15, rgba(0,0,0,0.6))`,
                     }
                   : undefined
               }
             >
               {/* Header */}
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   {post.pinned && (
-                    <Pin size={12} className="text-yellow-400" />
+                    <Pin size={14} className="text-yellow-400" />
                   )}
                   {post.isPaid && (
                     <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
                       style={{
                         backgroundColor: getTierColor(post.tier || 3),
                         color: '#000',
@@ -191,19 +204,19 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
                     </div>
                   )}
                   <span
-                    className="text-xs font-mono font-semibold"
-                    style={{ color: post.isPaid ? getTierColor(post.tier || 3) : '#9ca3af' }}
+                    className="text-sm font-mono font-bold"
+                    style={{ color: post.isPaid ? getTierColor(post.tier || 3) : '#e5e7eb' }}
                   >
                     {formatAddress(post.sender)}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] font-mono text-gray-600 block">
+                  <span className="text-xs font-mono text-gray-400 block">
                     {formatTimeAgo(BigInt(post.timestamp))}
                   </span>
                   {post.isPaid && post.amount && (
                     <span
-                      className="text-[10px] font-mono"
+                      className="text-xs font-mono font-semibold"
                       style={{ color: getTierColor(post.tier || 3) }}
                     >
                       {formatPLS(post.amount)} PLS
@@ -212,8 +225,8 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
                 </div>
               </div>
 
-              {/* Content */}
-              <p className={`text-sm leading-relaxed ${post.isPaid ? 'text-white' : 'text-gray-300'}`}>
+              {/* Content - BIGGER AND MORE READABLE */}
+              <p className={`text-base leading-relaxed font-sans ${post.isPaid ? 'text-white font-medium' : 'text-gray-200'}`}>
                 {post.message}
               </p>
             </div>
@@ -225,6 +238,16 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
       {/* Input Area */}
       {tokenAddress && isConnected && (
         <div className="p-3 border-t border-[#d6ffe0]/10 space-y-2">
+          {/* Holding Status */}
+          <div className={`text-[10px] font-mono text-center py-1 rounded ${
+            hasEnoughTokens ? 'bg-[#d6ffe0]/10 text-[#d6ffe0]' : 'bg-red-500/10 text-red-400'
+          }`}>
+            {hasEnoughTokens
+              ? `✓ Holding ${holdingPercent.toFixed(2)}% - Board unlocked`
+              : `Hold 1% to post (you have ${holdingPercent.toFixed(2)}%)`
+            }
+          </div>
+
           {/* Paid Post Toggle */}
           <button
             onClick={() => setIsPaidMode(!isPaidMode)}
@@ -272,16 +295,23 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={isPaidMode ? 'Write your promoted announcement...' : 'Post to the board...'}
+            placeholder={
+              !hasEnoughTokens && !isPaidMode
+                ? 'Hold 1% to post or use Promoted Post...'
+                : isPaidMode
+                  ? 'Write your promoted announcement...'
+                  : 'Post to the board...'
+            }
             maxLength={500}
             rows={2}
-            className="w-full px-3 py-2 bg-black/60 border border-[#d6ffe0]/20 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#d6ffe0]/50 transition-colors resize-none"
+            disabled={!hasEnoughTokens && !isPaidMode}
+            className="w-full px-3 py-2 bg-black/60 border border-[#d6ffe0]/20 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#d6ffe0]/50 transition-colors resize-none disabled:opacity-50 disabled:cursor-not-allowed"
           />
 
           {/* Post Button */}
           <button
             onClick={handlePost}
-            disabled={isPending || !message.trim()}
+            disabled={isPending || !message.trim() || (!hasEnoughTokens && !isPaidMode)}
             className={`w-full py-2.5 rounded-lg font-mono text-sm font-bold transition-all flex items-center justify-center gap-2 ${
               isPaidMode
                 ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-400 hover:to-pink-400'
@@ -293,11 +323,14 @@ export function MessageBoard({ tokenAddress }: MessageBoardProps) {
           </button>
 
           {/* Note */}
-          {!isPaidMode && (
-            <p className="text-[10px] font-mono text-gray-600 text-center">
-              Free posts - promote for visibility
-            </p>
-          )}
+          <p className="text-[10px] font-mono text-gray-600 text-center">
+            {isPaidMode
+              ? `Promoted Post: ${CONSTANTS.SUPERCHAT_TIERS[selectedTier]} PLS - highlighted & pinned`
+              : hasEnoughTokens
+                ? 'Free post - no payment required'
+                : 'Promoted Post available without holding requirement'
+            }
+          </p>
         </div>
       )}
 

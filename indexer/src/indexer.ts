@@ -39,24 +39,48 @@ const client = createPublicClient({
 // Track active tokens (launched but not graduated/delisted)
 const activeTokens = new Set<`0x${string}`>();
 
-// Load active tokens from database
+// Load active tokens from database (launched but not graduated/delisted)
 function loadActiveTokens() {
   const db = getDb();
-  const rows = db.prepare(`
-    SELECT DISTINCT token_address FROM swaps
-    WHERE token_address NOT IN (
-      SELECT token_address FROM graduated_tokens
-    )
+
+  // First, load all launched tokens
+  const launchedRows = db.prepare(`
+    SELECT token_address FROM launched_tokens
   `).all() as any[];
 
-  rows.forEach((row) => {
-    activeTokens.add(row.token_address as `0x${string}`);
+  // Then get graduated tokens to exclude
+  const graduatedRows = db.prepare(`
+    SELECT token_address FROM graduated_tokens
+  `).all() as any[];
+  const graduatedSet = new Set(graduatedRows.map((r: any) => r.token_address.toLowerCase()));
+
+  // Also get any unique tokens from swaps table (for tokens launched before indexer started)
+  const swapRows = db.prepare(`
+    SELECT DISTINCT token_address FROM swaps
+  `).all() as any[];
+
+  // Add launched tokens (excluding graduated)
+  launchedRows.forEach((row) => {
+    const addr = row.token_address.toLowerCase();
+    if (!graduatedSet.has(addr)) {
+      activeTokens.add(addr as `0x${string}`);
+    }
   });
-  console.log(`📋 Loaded ${activeTokens.size} active tokens`);
+
+  // Add tokens from swaps (excluding graduated)
+  swapRows.forEach((row) => {
+    const addr = row.token_address.toLowerCase();
+    if (!graduatedSet.has(addr)) {
+      activeTokens.add(addr as `0x${string}`);
+    }
+  });
+
+  console.log(`📋 Loaded ${activeTokens.size} active tokens from database`);
 }
 
-// Process TokenLaunched event
-async function handleTokenLaunched(log: Log) {
+// Process TokenCreated event (V4 Factory)
+// Event: TokenCreated(address indexed token, address indexed creator, string name, string symbol, address referrer)
+async function handleTokenCreated(log: Log) {
   try {
     const decoded = decodeEventLog({
       abi: FACTORY_ABI,
@@ -64,10 +88,10 @@ async function handleTokenLaunched(log: Log) {
       topics: log.topics,
     });
 
-    const { tokenId, tokenAddress, creator, name, symbol } = decoded.args as any;
-    console.log(`🚀 Token Launched: ${name} (${symbol}) at ${tokenAddress}`);
+    const { token, creator, name, symbol, referrer } = decoded.args as any;
+    console.log(`🚀 Token Created: ${name} (${symbol}) at ${token}`);
 
-    activeTokens.add(tokenAddress as `0x${string}`);
+    activeTokens.add(token as `0x${string}`);
 
     // Record token in database
     const db = getDb();
@@ -76,81 +100,81 @@ async function handleTokenLaunched(log: Log) {
       (token_id, token_address, creator, name, symbol, block_number, timestamp)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
-      tokenId.toString(),
-      tokenAddress.toLowerCase(),
+      '0', // No tokenId in V4 format
+      token.toLowerCase(),
       creator.toLowerCase(),
       name,
       symbol,
       Number(log.blockNumber),
       Math.floor(Date.now() / 1000)
     );
+
+    // Record referral if set
+    if (referrer && referrer !== '0x0000000000000000000000000000000000000000') {
+      console.log(`  └─ Referred by: ${referrer}`);
+    }
   } catch (e) {
-    console.error('Error handling TokenLaunched:', e);
+    console.error('Error handling TokenCreated:', e);
   }
 }
 
-// Process TokenGraduated event
-async function handleTokenGraduated(log: Log) {
+// Check if a token has graduated (call contract function)
+async function checkTokenGraduation(tokenAddress: `0x${string}`): Promise<boolean> {
   try {
-    const decoded = decodeEventLog({
-      abi: FACTORY_ABI,
-      data: log.data,
-      topics: log.topics,
+    const graduated = await client.readContract({
+      address: tokenAddress,
+      abi: TOKEN_ABI,
+      functionName: 'graduated',
     });
-
-    const { tokenId, tokenAddress, liquidityAmount, treasuryFee } = decoded.args as any;
-    console.log(`🎓 Token Graduated: ${tokenAddress} - Liquidity: ${liquidityAmount}, Treasury Fee: ${treasuryFee}`);
-
-    activeTokens.delete(tokenAddress as `0x${string}`);
-
-    // Record graduation
-    const db = getDb();
-    db.prepare(`
-      INSERT OR IGNORE INTO graduated_tokens
-      (token_id, token_address, liquidity_amount, treasury_fee, block_number, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      tokenId.toString(),
-      tokenAddress.toLowerCase(),
-      liquidityAmount.toString(),
-      treasuryFee.toString(),
-      Number(log.blockNumber),
-      Math.floor(Date.now() / 1000)
-    );
+    return graduated as boolean;
   } catch (e) {
-    console.error('Error handling TokenGraduated:', e);
+    return false;
   }
 }
 
-// Process TokenDelisted event
-async function handleTokenDelisted(log: Log) {
+// Check if a token is deleted
+async function checkTokenDeleted(tokenAddress: `0x${string}`): Promise<boolean> {
   try {
-    const decoded = decodeEventLog({
-      abi: FACTORY_ABI,
-      data: log.data,
-      topics: log.topics,
+    const deleted = await client.readContract({
+      address: tokenAddress,
+      abi: TOKEN_ABI,
+      functionName: 'deleted',
     });
-
-    const { tokenId, tokenAddress, reason } = decoded.args as any;
-    console.log(`❌ Token Delisted: ${tokenAddress} - Reason: ${reason}`);
-
-    activeTokens.delete(tokenAddress as `0x${string}`);
+    return deleted as boolean;
   } catch (e) {
-    console.error('Error handling TokenDelisted:', e);
+    return false;
   }
 }
 
-// Process Buy event (V2 format)
+// Record graduation in database
+function recordGraduation(tokenAddress: string, blockNumber: number) {
+  const db = getDb();
+  db.prepare(`
+    INSERT OR IGNORE INTO graduated_tokens
+    (token_id, token_address, liquidity_amount, treasury_fee, block_number, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    '0',
+    tokenAddress.toLowerCase(),
+    '0', // We don't have this info without event
+    '0',
+    blockNumber,
+    Math.floor(Date.now() / 1000)
+  );
+  console.log(`🎓 Token Graduated: ${tokenAddress}`);
+}
+
+// Process TokenBought event from TOKEN contract
+// Event: TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address indexed referrer)
 async function handleBuy(log: Log & { args?: any }, tokenAddress: `0x${string}`) {
   try {
-    // V2: { token, buyer, plsIn, tokensOut, referrer }
     const args = (log as any).args;
     const buyer = args.buyer as `0x${string}`;
-    const plsIn = args.plsIn as bigint;
-    const tokensOut = args.tokensOut as bigint;
+    const plsSpent = args.plsSpent as bigint;
+    const tokensBought = args.tokensBought as bigint;
     const eventReferrer = args.referrer as `0x${string}`;
 
-    const fees = calculateBuyFees(plsIn);
+    const fees = calculateBuyFees(plsSpent);
 
     // Check referrer from event or database
     const referrer = eventReferrer && eventReferrer !== '0x0000000000000000000000000000000000000000'
@@ -161,7 +185,7 @@ async function handleBuy(log: Log & { args?: any }, tokenAddress: `0x${string}`)
       referrerFee = calculateReferralFee(fees.treasuryFee);
     }
 
-    console.log(`💰 Buy: ${buyer} bought ${tokensOut} tokens for ${plsIn} PLS on ${tokenAddress}`);
+    console.log(`💰 Buy: ${buyer} bought ${tokensBought} tokens for ${plsSpent} PLS on ${tokenAddress}`);
 
     recordSwap({
       txHash: log.transactionHash!,
@@ -170,8 +194,8 @@ async function handleBuy(log: Log & { args?: any }, tokenAddress: `0x${string}`)
       tokenAddress: tokenAddress,
       traderAddress: buyer,
       isBuy: true,
-      amountIn: plsIn,
-      amountOut: tokensOut,
+      amountIn: plsSpent,
+      amountOut: tokensBought,
       feeAmount: fees.totalFee,
       userFee: fees.userFee,
       treasuryFee: fees.treasuryFee - referrerFee,
@@ -183,28 +207,25 @@ async function handleBuy(log: Log & { args?: any }, tokenAddress: `0x${string}`)
   }
 }
 
-// Process Sell event (V2 format)
+// Process TokenSold event from TOKEN contract
+// Event: TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)
 async function handleSell(log: Log & { args?: any }, tokenAddress: `0x${string}`) {
   try {
-    // V2: { token, seller, tokensIn, plsOut, referrer }
     const args = (log as any).args;
     const seller = args.seller as `0x${string}`;
-    const tokensIn = args.tokensIn as bigint;
-    const plsOut = args.plsOut as bigint;
-    const eventReferrer = args.referrer as `0x${string}`;
+    const tokensSold = args.tokensSold as bigint;
+    const plsReceived = args.plsReceived as bigint;
 
-    const fees = calculateSellFees(plsOut);
+    const fees = calculateSellFees(plsReceived);
 
-    // Check referrer from event or database
-    const referrer = eventReferrer && eventReferrer !== '0x0000000000000000000000000000000000000000'
-      ? eventReferrer
-      : getReferrer(seller);
+    // Check referrer from database
+    const referrer = getReferrer(seller);
     let referrerFee = 0n;
     if (referrer) {
       referrerFee = calculateReferralFee(fees.treasuryFee);
     }
 
-    console.log(`💸 Sell: ${seller} sold ${tokensIn} tokens for ${plsOut} PLS on ${tokenAddress}`);
+    console.log(`💸 Sell: ${seller} sold ${tokensSold} tokens for ${plsReceived} PLS on ${tokenAddress}`);
 
     recordSwap({
       txHash: log.transactionHash!,
@@ -213,8 +234,8 @@ async function handleSell(log: Log & { args?: any }, tokenAddress: `0x${string}`
       tokenAddress: tokenAddress,
       traderAddress: seller,
       isBuy: false,
-      amountIn: tokensIn,
-      amountOut: plsOut,
+      amountIn: tokensSold,
+      amountOut: plsReceived,
       feeAmount: fees.totalFee,
       userFee: fees.userFee,
       treasuryFee: fees.treasuryFee - referrerFee,
@@ -230,7 +251,7 @@ async function handleSell(log: Log & { args?: any }, tokenAddress: `0x${string}`
 async function processBlockRange(fromBlock: bigint, toBlock: bigint) {
   console.log(`📦 Processing blocks ${fromBlock} to ${toBlock}`);
 
-  // Get factory events
+  // Get factory events first (to discover new tokens)
   const factoryLogs = await client.getLogs({
     address: FACTORY_ADDRESS,
     events: FACTORY_ABI,
@@ -240,50 +261,91 @@ async function processBlockRange(fromBlock: bigint, toBlock: bigint) {
 
   for (const log of factoryLogs) {
     const eventName = log.eventName;
-    if (eventName === 'TokenLaunched') {
-      await handleTokenLaunched(log);
-    } else if (eventName === 'TokenGraduated') {
-      await handleTokenGraduated(log);
-    } else if (eventName === 'TokenDelisted') {
-      await handleTokenDelisted(log);
+    if (eventName === 'TokenCreated') {
+      await handleTokenCreated(log);
     }
+    // InitialBuy is also emitted by Factory for createTokenAndBuy
   }
 
-  // V2: Get swap events from FACTORY (not individual tokens)
-  const buyEvent = parseAbiItem('event TokenBought(address indexed token, address indexed buyer, uint256 plsIn, uint256 tokensOut, address referrer)');
-  const sellEvent = parseAbiItem('event TokenSold(address indexed token, address indexed seller, uint256 tokensIn, uint256 plsOut, address referrer)');
+  // Now fetch TokenBought/TokenSold events from INDIVIDUAL TOKEN contracts
+  // Events are emitted by token contracts, NOT the factory
+  const buyEvent = parseAbiItem('event TokenBought(address indexed buyer, uint256 plsSpent, uint256 tokensBought, address indexed referrer)');
+  const sellEvent = parseAbiItem('event TokenSold(address indexed seller, uint256 tokensSold, uint256 plsReceived)');
 
-  try {
-    const buyLogs = await client.getLogs({
-      address: FACTORY_ADDRESS,
-      event: buyEvent,
-      fromBlock,
-      toBlock,
-    });
+  // Query each active token for buy/sell events
+  // For efficiency, we query in batches if there are many tokens
+  const tokenArray = Array.from(activeTokens);
 
-    for (const log of buyLogs) {
-      const args = log.args as any;
-      if (args?.token) {
-        activeTokens.add(args.token as `0x${string}`);
-        await handleBuy(log, args.token as `0x${string}`);
+  if (tokenArray.length > 0) {
+    // Query Buy events from all active tokens at once (null address = all contracts matching event)
+    try {
+      const buyLogs = await client.getLogs({
+        address: tokenArray.length === 1 ? tokenArray[0] : undefined,
+        event: buyEvent,
+        fromBlock,
+        toBlock,
+      });
+
+      for (const log of buyLogs) {
+        const tokenAddress = log.address as `0x${string}`;
+        // Only process if it's one of our tracked tokens
+        if (activeTokens.has(tokenAddress)) {
+          await handleBuy(log, tokenAddress);
+        }
+      }
+    } catch (e) {
+      // If querying all fails, query each token individually
+      console.log('Querying buy events per token...');
+      for (const tokenAddress of tokenArray) {
+        try {
+          const buyLogs = await client.getLogs({
+            address: tokenAddress,
+            event: buyEvent,
+            fromBlock,
+            toBlock,
+          });
+          for (const log of buyLogs) {
+            await handleBuy(log, tokenAddress);
+          }
+        } catch (err) {
+          // Silently continue - token may have been destroyed
+        }
       }
     }
 
-    const sellLogs = await client.getLogs({
-      address: FACTORY_ADDRESS,
-      event: sellEvent,
-      fromBlock,
-      toBlock,
-    });
+    try {
+      const sellLogs = await client.getLogs({
+        address: tokenArray.length === 1 ? tokenArray[0] : undefined,
+        event: sellEvent,
+        fromBlock,
+        toBlock,
+      });
 
-    for (const log of sellLogs) {
-      const args = log.args as any;
-      if (args?.token) {
-        await handleSell(log, args.token as `0x${string}`);
+      for (const log of sellLogs) {
+        const tokenAddress = log.address as `0x${string}`;
+        if (activeTokens.has(tokenAddress)) {
+          await handleSell(log, tokenAddress);
+        }
+      }
+    } catch (e) {
+      // If querying all fails, query each token individually
+      console.log('Querying sell events per token...');
+      for (const tokenAddress of tokenArray) {
+        try {
+          const sellLogs = await client.getLogs({
+            address: tokenAddress,
+            event: sellEvent,
+            fromBlock,
+            toBlock,
+          });
+          for (const log of sellLogs) {
+            await handleSell(log, tokenAddress);
+          }
+        } catch (err) {
+          // Silently continue
+        }
       }
     }
-  } catch (e) {
-    console.error('Error fetching V2 swap logs:', e);
   }
 
   // Update last processed block

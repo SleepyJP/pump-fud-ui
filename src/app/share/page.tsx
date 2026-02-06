@@ -7,12 +7,12 @@ export default function SharePage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       {/* Hero Image */}
-      <div className="relative w-full max-w-md mb-8">
+      <div className="relative w-full max-w-2xl mb-8">
         <Image
-          src="/og-image.jpg"
+          src="/pump-fud-share.jpg"
           alt="PUMP.FUD - Memecoin Launchpad on PulseChain"
           width={1200}
-          height={1200}
+          height={675}
           className="w-full rounded-2xl border-2 border-fud-green/50 shadow-2xl shadow-fud-green/20"
           priority
         />
@@ -23,14 +23,14 @@ export default function SharePage() {
         PUMP.FUD
       </h1>
       <p className="text-text-muted font-mono text-sm mb-8 text-center max-w-sm">
-        The ultimate memecoin launchpad on PulseChain. Fair launches with bonding curves.
+        Gamified MemeCoin LaunchPad on PulseChain... More To Follow.
       </p>
 
       {/* Social Links */}
       <div className="flex flex-col gap-4 w-full max-w-xs">
-        {/* Launch App */}
+        {/* Launch App - with referral */}
         <Link
-          href="/"
+          href="/?ref=31B8F9A8"
           className="flex items-center justify-center gap-3 bg-fud-green text-black font-display font-bold py-4 px-6 rounded-xl hover:bg-fud-green/90 transition-all hover:scale-105 text-lg"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,9 +65,9 @@ export default function SharePage() {
           TELEGRAM
         </a>
 
-        {/* Browse Tokens */}
+        {/* Browse Tokens - with referral */}
         <Link
-          href="/tokens"
+          href="/tokens?ref=31B8F9A8"
           className="flex items-center justify-center gap-3 bg-dark-card border border-border-primary text-text-primary font-display font-bold py-4 px-6 rounded-xl hover:border-fud-green hover:text-fud-green transition-all hover:scale-105 text-lg"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,9 +77,19 @@ export default function SharePage() {
         </Link>
       </div>
 
+      {/* Fee Earning Banner */}
+      <div className="mt-8 bg-fud-green/10 border border-fud-green/30 rounded-xl p-4 max-w-xs text-center">
+        <p className="text-fud-green font-display text-sm font-bold mb-1">
+          💰 EARN TRADING FEES
+        </p>
+        <p className="text-text-muted text-xs font-mono">
+          Users earn 50% of all trading fees. Fees also buy back PUMP.FUD token.
+        </p>
+      </div>
+
       {/* Tagline */}
-      <p className="mt-10 text-fud-green font-display text-xl tracking-widest animate-pulse">
-        FAIR LAUNCHES. DUAL DEX GRADUATION.
+      <p className="mt-6 text-fud-green font-display text-xl tracking-widest animate-pulse">
+        FAIR LAUNCHES. MULTI-CHAIN SOON.
       </p>
 
       {/* Chain Badge */}

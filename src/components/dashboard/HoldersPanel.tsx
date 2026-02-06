@@ -1,17 +1,23 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { usePublicClient } from 'wagmi';
-import { parseAbiItem, formatUnits } from 'viem';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { usePublicClient, useReadContracts } from 'wagmi';
+import { parseAbiItem, formatUnits, type Address } from 'viem';
 import { useBlockRefresh } from '@/hooks/useSharedBlockNumber';
-import { Users, Crown, ExternalLink, Percent } from 'lucide-react';
-import { formatAddress } from '@/lib/utils';
+import { Droplet, Gift, TrendingUp, ExternalLink } from 'lucide-react';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE DIGITAL FORGE - Enhanced Holders Panel
+// Shows holder balances + rewards for tax tokens
+// ═══════════════════════════════════════════════════════════════════════════
 
 interface HolderData {
   address: `0x${string}`;
   balance: bigint;
   percentage: number;
   isCreator: boolean;
+  pendingRewards?: bigint;
+  totalClaimed?: bigint;
 }
 
 interface HoldersPanelProps {
@@ -19,14 +25,88 @@ interface HoldersPanelProps {
   tokenSymbol?: string;
   totalSupply?: bigint;
   creator?: `0x${string}`;
+  // Tax token props
+  isTaxToken?: boolean;
+  rewardTokenSymbol?: string;
+  rewardTokenDecimals?: number;
 }
 
-export function HoldersPanel({ tokenAddress, tokenSymbol, totalSupply, creator }: HoldersPanelProps) {
+// ABI for reward functions
+const REWARDS_ABI = [
+  {
+    inputs: [{ name: 'holder', type: 'address' }],
+    name: 'getPendingRewards',
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'holder', type: 'address' }],
+    name: 'getTotalClaimed',
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+export function HoldersPanel({
+  tokenAddress,
+  tokenSymbol,
+  totalSupply,
+  creator,
+  isTaxToken = false,
+  rewardTokenSymbol = 'PLS',
+  rewardTokenDecimals = 18,
+}: HoldersPanelProps) {
   const [holders, setHolders] = useState<HolderData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showRewards, setShowRewards] = useState(isTaxToken);
   const isMountedRef = useRef(true);
 
   const publicClient = usePublicClient();
+
+  // Build multicall contracts for rewards data
+  const rewardContracts = useMemo(() => {
+    if (!isTaxToken || !tokenAddress || holders.length === 0) return [];
+
+    return holders.flatMap((holder) => [
+      {
+        address: tokenAddress,
+        abi: REWARDS_ABI,
+        functionName: 'getPendingRewards' as const,
+        args: [holder.address],
+      },
+      {
+        address: tokenAddress,
+        abi: REWARDS_ABI,
+        functionName: 'getTotalClaimed' as const,
+        args: [holder.address],
+      },
+    ]);
+  }, [isTaxToken, tokenAddress, holders]);
+
+  // Fetch rewards data via multicall
+  const { data: rewardsData, refetch: refetchRewards } = useReadContracts({
+    contracts: rewardContracts as any,
+    query: { enabled: rewardContracts.length > 0 },
+  });
+
+  // Merge rewards data into holders
+  const holdersWithRewards = useMemo(() => {
+    if (!rewardsData || !isTaxToken) return holders;
+
+    return holders.map((holder, index) => {
+      const baseIdx = index * 2;
+      const pendingRewards = (rewardsData[baseIdx]?.result as bigint) || 0n;
+      const totalClaimed = (rewardsData[baseIdx + 1]?.result as bigint) || 0n;
+
+      return {
+        ...holder,
+        pendingRewards,
+        totalClaimed,
+      };
+    });
+  }, [holders, rewardsData, isTaxToken]);
 
   const fetchHolders = useCallback(async () => {
     if (!tokenAddress || !publicClient || !isMountedRef.current) return;
@@ -36,7 +116,7 @@ export function HoldersPanel({ tokenAddress, tokenSymbol, totalSupply, creator }
       const transferEvent = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 value)');
 
       const currentBlock = await publicClient.getBlockNumber();
-      const fromBlock = currentBlock - BigInt(30000);
+      const fromBlock = currentBlock - BigInt(500000);
 
       const logs = await publicClient.getLogs({
         address: tokenAddress,
@@ -58,13 +138,11 @@ export function HoldersPanel({ tokenAddress, tokenSymbol, totalSupply, creator }
         const fromAddr = args.from.toLowerCase();
         const toAddr = args.to.toLowerCase();
 
-        // Subtract from sender (unless mint)
         if (fromAddr !== ZERO.toLowerCase()) {
           const currentFrom = balances.get(fromAddr) || BigInt(0);
           balances.set(fromAddr, currentFrom - args.value);
         }
 
-        // Add to receiver (unless burn)
         if (toAddr !== ZERO.toLowerCase() && toAddr !== '0x000000000000000000000000000000000000dead') {
           const currentTo = balances.get(toAddr) || BigInt(0);
           balances.set(toAddr, currentTo + args.value);
@@ -73,7 +151,6 @@ export function HoldersPanel({ tokenAddress, tokenSymbol, totalSupply, creator }
 
       if (!isMountedRef.current) return;
 
-      // Convert to array, filter positive, sort by balance
       const supply = totalSupply || BigInt(1);
       const holderArray: HolderData[] = [];
 
@@ -89,8 +166,7 @@ export function HoldersPanel({ tokenAddress, tokenSymbol, totalSupply, creator }
       }
 
       holderArray.sort((a, b) => Number(b.balance - a.balance));
-
-      setHolders(holderArray.slice(0, 20));
+      setHolders(holderArray.slice(0, 50)); // Increased limit for rewards view
     } catch (err) {
       console.error('[HoldersPanel] Error:', err);
     } finally {
@@ -98,19 +174,23 @@ export function HoldersPanel({ tokenAddress, tokenSymbol, totalSupply, creator }
     }
   }, [tokenAddress, publicClient, totalSupply, creator]);
 
-  // Use shared block refresh - EVERY BLOCK
   useBlockRefresh('holders', fetchHolders, 1, !!tokenAddress);
 
-  // Initial fetch
   useEffect(() => {
     if (tokenAddress) fetchHolders();
-  }, [tokenAddress]); // fetchHolders intentionally excluded
+  }, [tokenAddress]);
 
-  // Cleanup
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
+
+  // Refetch rewards when holders change
+  useEffect(() => {
+    if (isTaxToken && holders.length > 0) {
+      refetchRewards();
+    }
+  }, [holders, isTaxToken, refetchRewards]);
 
   const formatBalance = (balance: bigint | undefined): string => {
     if (!balance) return '0';
@@ -121,95 +201,193 @@ export function HoldersPanel({ tokenAddress, tokenSymbol, totalSupply, creator }
     return num.toFixed(2);
   };
 
-  const getHolderColor = (index: number, percentage: number): string => {
-    if (index === 0) return 'text-yellow-400';
-    if (index === 1) return 'text-gray-300';
-    if (index === 2) return 'text-amber-600';
-    if (percentage >= 5) return 'text-fud-green';
-    return 'text-text-primary';
+  const formatReward = (amount: bigint | undefined, decimals: number = 18): string => {
+    if (!amount || amount === 0n) return '-';
+    const num = Number(formatUnits(amount, decimals));
+    if (num < 0.0001) return '< 0.0001';
+    if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';
+    if (num >= 1_000) return (num / 1_000).toFixed(2) + 'K';
+    return num.toFixed(4);
   };
 
+  const formatShortAddr = (addr: string): string => {
+    return '@' + addr.slice(2, 8).toLowerCase();
+  };
+
+  // Calculate totals for header
+  const totalPendingRewards = useMemo(() => {
+    if (!isTaxToken) return 0n;
+    return holdersWithRewards.reduce((sum, h) => sum + (h.pendingRewards || 0n), 0n);
+  }, [holdersWithRewards, isTaxToken]);
+
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-dark-primary to-dark-secondary">
+    <div className="h-full flex flex-col bg-black">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-fud-green/20">
-        <div className="flex items-center gap-2">
-          <Users size={18} className="text-fud-green" />
-          <span className="font-display text-sm text-fud-green">HOLDERS</span>
+      <div className="px-4 py-3 border-b border-gray-800">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Droplet size={16} className="text-cyan-400" />
+            <span className="text-white font-semibold">Holders: {holdersWithRewards.length}</span>
+          </div>
+
+          {/* Toggle rewards view for tax tokens */}
+          {isTaxToken && (
+            <button
+              onClick={() => setShowRewards(!showRewards)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono transition-all ${
+                showRewards
+                  ? 'bg-[#d6ffe0]/20 text-[#d6ffe0] border border-[#d6ffe0]/30'
+                  : 'bg-gray-800 text-gray-400 border border-gray-700'
+              }`}
+            >
+              <Gift size={10} />
+              REWARDS
+            </button>
+          )}
         </div>
-        <span className="text-[10px] font-mono text-text-muted">
-          {holders.length} addresses
-        </span>
+
+        {/* Rewards summary for tax tokens */}
+        {isTaxToken && showRewards && totalPendingRewards > 0n && (
+          <div className="mt-2 flex items-center gap-2 text-[10px] text-gray-400">
+            <TrendingUp size={10} className="text-[#d6ffe0]" />
+            <span>
+              Total Pending: <span className="text-[#d6ffe0] font-mono">{formatReward(totalPendingRewards, rewardTokenDecimals)} {rewardTokenSymbol}</span>
+            </span>
+          </div>
+        )}
       </div>
+
+      {/* Column Headers for tax tokens */}
+      {isTaxToken && showRewards && holdersWithRewards.length > 0 && (
+        <div className="px-4 py-2 border-b border-gray-800 bg-gray-900/50 flex items-center text-[10px] text-gray-500 uppercase font-mono">
+          <div className="flex-1">Holder</div>
+          <div className="w-24 text-right">Balance</div>
+          <div className="w-24 text-right text-[#d6ffe0]">Pending</div>
+          <div className="w-20 text-right text-purple-400">Claimed</div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
         {!tokenAddress ? (
           <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <Users size={32} className="mx-auto mb-2 text-text-muted opacity-50" />
-              <p className="text-text-muted text-xs font-mono">Select a token</p>
-            </div>
+            <p className="text-gray-500 text-sm">Select a token</p>
           </div>
         ) : isLoading && holders.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-fud-green/30 border-t-fud-green rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-gray-700 border-t-cyan-400 rounded-full animate-spin" />
           </div>
-        ) : holders.length === 0 ? (
+        ) : holdersWithRewards.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <p className="text-text-muted text-xs font-mono">No holders found</p>
+            <p className="text-gray-500 text-sm">No holders found</p>
           </div>
-        ) : (
-          <div className="divide-y divide-fud-green/5">
-            {holders.map((holder, index) => (
-              <div
+        ) : isTaxToken && showRewards ? (
+          /* Tax Token Rewards View */
+          <div className="py-1">
+            {holdersWithRewards.map((holder, index) => (
+              <a
                 key={holder.address}
-                className={`flex items-center gap-2 px-3 py-2 hover:bg-fud-green/5 transition-colors ${
-                  index < 3 ? 'bg-fud-green/5' : ''
-                }`}
+                href={`https://scan.pulsechain.com/address/${holder.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center px-4 py-2 hover:bg-gray-900/50 transition-colors group"
               >
-                {/* Rank */}
-                <div className="w-6 flex items-center justify-center">
-                  {index < 3 ? (
-                    <Crown size={14} className={getHolderColor(index, holder.percentage)} />
+                {/* Holder Address */}
+                <div className="flex-1 flex items-center gap-2 min-w-0">
+                  {index === 0 ? (
+                    <Droplet size={12} className="text-cyan-400 flex-shrink-0" />
                   ) : (
-                    <span className="text-[10px] font-mono text-text-muted">#{index + 1}</span>
+                    <span className="w-3 flex-shrink-0 text-[10px] text-gray-600 font-mono">
+                      {index + 1}
+                    </span>
                   )}
-                </div>
-
-                {/* Address */}
-                <div className="flex-1 min-w-0">
-                  <a
-                    href={`https://scan.pulsechain.com/address/${holder.address}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`text-xs font-mono hover:underline flex items-center gap-1 ${getHolderColor(index, holder.percentage)}`}
-                  >
-                    {formatAddress(holder.address)}
+                  <span className={`text-xs font-mono truncate ${index === 0 ? 'text-cyan-400' : 'text-gray-300'}`}>
+                    {formatShortAddr(holder.address)}
                     {holder.isCreator && (
-                      <span className="px-1 py-0.5 bg-fud-purple/20 text-fud-purple text-[8px] rounded">DEV</span>
+                      <span className="ml-1 text-purple-400 text-[10px]">(dev)</span>
                     )}
-                    <ExternalLink size={10} className="opacity-50" />
-                  </a>
+                  </span>
+                  <ExternalLink size={10} className="text-gray-600 opacity-0 group-hover:opacity-100 flex-shrink-0" />
                 </div>
 
                 {/* Balance */}
-                <div className="text-right">
-                  <p className="text-xs font-mono text-text-primary">
+                <div className="w-24 text-right">
+                  <span className="text-xs text-gray-400 font-mono">
                     {formatBalance(holder.balance)}
-                  </p>
-                  <p className={`text-[10px] font-mono flex items-center justify-end gap-0.5 ${
-                    holder.percentage >= 5 ? 'text-fud-green' : 'text-text-muted'
-                  }`}>
-                    <Percent size={8} />
-                    {holder.percentage.toFixed(2)}
-                  </p>
+                  </span>
+                  <span className="text-[10px] text-gray-600 ml-1">
+                    ({holder.percentage.toFixed(1)}%)
+                  </span>
                 </div>
-              </div>
+
+                {/* Pending Rewards */}
+                <div className="w-24 text-right">
+                  <span className={`text-xs font-mono ${
+                    holder.pendingRewards && holder.pendingRewards > 0n
+                      ? 'text-[#d6ffe0]'
+                      : 'text-gray-600'
+                  }`}>
+                    {formatReward(holder.pendingRewards, rewardTokenDecimals)}
+                  </span>
+                </div>
+
+                {/* Total Claimed */}
+                <div className="w-20 text-right">
+                  <span className={`text-xs font-mono ${
+                    holder.totalClaimed && holder.totalClaimed > 0n
+                      ? 'text-purple-400'
+                      : 'text-gray-600'
+                  }`}>
+                    {formatReward(holder.totalClaimed, rewardTokenDecimals)}
+                  </span>
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : (
+          /* Standard View (non-tax or rewards hidden) */
+          <div className="py-1">
+            {holdersWithRewards.map((holder, index) => (
+              <a
+                key={holder.address}
+                href={`https://scan.pulsechain.com/address/${holder.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between px-4 py-2 hover:bg-gray-900/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  {index === 0 ? (
+                    <Droplet size={14} className="text-cyan-400" />
+                  ) : (
+                    <span className="w-[14px]" />
+                  )}
+                  <span className={`text-sm font-mono ${index === 0 ? 'text-cyan-400' : 'text-gray-300'}`}>
+                    {formatShortAddr(holder.address)}
+                    {holder.isCreator && (
+                      <span className="ml-1 text-purple-400 text-xs">(dev)</span>
+                    )}
+                  </span>
+                </div>
+
+                <span className="text-sm text-gray-400">
+                  {formatBalance(holder.balance)} ({holder.percentage.toFixed(2)}%)
+                </span>
+              </a>
             ))}
           </div>
         )}
       </div>
+
+      {/* Footer for tax tokens */}
+      {isTaxToken && showRewards && (
+        <div className="px-4 py-2 border-t border-gray-800 bg-gray-900/30">
+          <p className="text-[10px] text-gray-500 text-center">
+            Rewards in <span className="text-[#d6ffe0]">{rewardTokenSymbol}</span> • Click holder to view on explorer
+          </p>
+        </div>
+      )}
     </div>
   );
 }
+
+export default HoldersPanel;

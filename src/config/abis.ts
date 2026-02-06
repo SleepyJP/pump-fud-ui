@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// PUMP.FUD V2 FACTORY ABI - 0xeEdc047484bF8c3bC0B76b309f2ED7aeB25098Dd
+// PUMP.FUD V4 FACTORY ABI - 0x997bDE122A1A3c977Bf84EE95e022e9dd86952c7
+// V4: Admin whitelist (fee exempt), multi-router (PulseX V2 + Paisley Smart)
 // Uses getTokens(offset, limit), allTokensLength(), allTokens(index)
-// Has launchFee() getter
+// Has launchFee() getter, isFeeExempt(address) for whitelist check
 // ═══════════════════════════════════════════════════════════════════════════
 export const FACTORY_ABI = [
   // V2 createToken - order: name, symbol, imageUri, description, referrer
@@ -413,6 +414,7 @@ export const LEADERBOARD_ABI = [
   },
 ] as const;
 
+// DEPRECATED - Old claim-based distributor
 export const FEE_DISTRIBUTOR_ABI = [
   {
     inputs: [],
@@ -428,4 +430,53 @@ export const FEE_DISTRIBUTOR_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+] as const;
+
+// NEW - Auto-airdrop FeeCollector (no claims)
+export const FEE_COLLECTOR_ABI = [
+  // Constants
+  { inputs: [], name: 'TREASURY', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'TREASURY_BPS', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'USER_BPS', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'MAX_BATCH_SIZE', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  // State
+  { inputs: [], name: 'treasuryPool', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'userPool', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'treasuryThreshold', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'userThreshold', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'currentEpoch', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'paused', outputs: [{ type: 'bool' }], stateMutability: 'view', type: 'function' },
+  // User info
+  { inputs: [{ type: 'address' }], name: 'userReferrer', outputs: [{ type: 'address' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'address' }], name: 'hasReferrer', outputs: [{ type: 'bool' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'address' }], name: 'authorized', outputs: [{ type: 'bool' }], stateMutability: 'view', type: 'function' },
+  // Epoch tracking
+  { inputs: [{ type: 'uint256' }, { type: 'address' }], name: 'epochVolume', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'uint256' }], name: 'totalEpochVolume', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'uint256' }], name: 'epochUserPool', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'uint256' }], name: 'epochFullyDistributed', outputs: [{ type: 'bool' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'uint256' }], name: 'epochDistributionIndex', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  // View functions
+  { inputs: [{ type: 'uint256' }], name: 'getEpochTraderCount', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }], name: 'getEpochTraders', outputs: [{ type: 'address[]' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'uint256' }], name: 'getDistributionProgress', outputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'bool' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'address' }], name: 'getUserEstimatedShare', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'address' }, { type: 'uint256' }], name: 'getUserEpochInfo', outputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'bool' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ type: 'address' }], name: 'getCurrentEpochVolume', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'getCurrentEpochTotalVolume', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'getPoolBalances', outputs: [{ type: 'uint256' }, { type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [], name: 'getCurrentEpochInfo', outputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  // Write functions (for admin/continue airdrop)
+  { inputs: [{ type: 'uint256' }], name: 'continueAirdrop', outputs: [], stateMutability: 'nonpayable', type: 'function' },
+  { inputs: [{ type: 'uint256' }, { type: 'uint256' }], name: 'airdropMultipleBatches', outputs: [], stateMutability: 'nonpayable', type: 'function' },
+  { inputs: [], name: 'distributeTreasury', outputs: [], stateMutability: 'nonpayable', type: 'function' },
+  { inputs: [], name: 'finalizeEpoch', outputs: [], stateMutability: 'nonpayable', type: 'function' },
+  // Events
+  { anonymous: false, inputs: [{ indexed: true, type: 'address' }, { indexed: false, type: 'uint256' }, { indexed: false, type: 'uint256' }, { indexed: false, type: 'uint256' }], name: 'FeeReceived', type: 'event' },
+  { anonymous: false, inputs: [{ indexed: true, type: 'address' }, { indexed: false, type: 'uint256' }, { indexed: true, type: 'address' }, { indexed: false, type: 'uint256' }], name: 'TradeRecorded', type: 'event' },
+  { anonymous: false, inputs: [{ indexed: false, type: 'uint256' }], name: 'TreasuryDistributed', type: 'event' },
+  { anonymous: false, inputs: [{ indexed: true, type: 'uint256' }, { indexed: false, type: 'uint256' }, { indexed: false, type: 'uint256' }, { indexed: false, type: 'uint256' }], name: 'UserEpochFinalized', type: 'event' },
+  { anonymous: false, inputs: [{ indexed: true, type: 'address' }, { indexed: true, type: 'uint256' }, { indexed: false, type: 'uint256' }, { indexed: true, type: 'address' }, { indexed: false, type: 'uint256' }], name: 'AirdropSent', type: 'event' },
+  { anonymous: false, inputs: [{ indexed: true, type: 'uint256' }, { indexed: false, type: 'uint256' }, { indexed: false, type: 'uint256' }, { indexed: false, type: 'uint256' }], name: 'AirdropBatchComplete', type: 'event' },
+  { anonymous: false, inputs: [{ indexed: true, type: 'uint256' }, { indexed: false, type: 'uint256' }, { indexed: false, type: 'uint256' }], name: 'EpochFullyDistributed', type: 'event' },
 ] as const;

@@ -24,18 +24,26 @@ export const config = getDefaultConfig({
 });
 
 // PRODUCTION CONTRACT ADDRESSES - PulseChain 369
-// V3 Factory with FIXED createTokenAndBuy - deployed 2026-01-29
-// 50M PLS graduation threshold, 100K PLS launch fee
+// V6 Factory - Clone Pattern (EIP-1167) - deployed 2026-02-02
+// 50M PLS graduation threshold, 100K PLS launch fee (FREE for whitelisted)
+// FeeCollector: Auto-airdrop system (100K treasury / 1M user thresholds)
 export const CONTRACTS = {
-  FACTORY: '0x174CE6A84709e3D7367B45fCEBA1f1b26ad2bd6a' as const,
-  BONDING_CURVE: '0xfe6342C9A25dbb4986B81ca57AAFd91d73546f34' as const,
-  FEE_DISTRIBUTOR: '0x5103569641A9C23a89BA7e870E8dC4C083A9F39c' as const,
-  LEADERBOARD: '0x848E2bD2A33AD462e9934ea2F1c7eA6DE5943Bd7' as const,
-  SUPERCHAT: '0x0E2a282Fc96Ffdb0eB6b4645D537a746A7c813D0' as const,
-  REFERRALS: '0xcaDa87A9d1025563C976909c13013C9DDc471A17' as const,
+  FACTORY: '0x6317446972E2AcA317d7a1ef27D1412AFFcF8E27' as const,
+  BONDING_CURVE: '0x1e667ABC26bb0Da9B37Fd4Eb78Bb6695Ed43f0cd' as const,
+  FEE_COLLECTOR: '0x83bE1e3D997A4acd9fc155752170C829Adca4A46' as const,
+  LEADERBOARD: '0xB2a121ff515331992A29ef6CEf3ffdF090587415' as const,
+  SUPERCHAT: '0x1139aD1e7088Ef50FC657EBF83E6A444DDee6b5F' as const,
   TREASURY: '0x49bBEFa1d94702C0e9a5EAdDEc7c3C5D3eb9086B' as const,
-  PULSEX_ROUTER: '0x165C3410fC91EF562C50559f7d2289fEbed552d9' as const,
+  PULSEX_V2_ROUTER: '0x165C3410fC91EF562C50559f7d2289fEbed552d9' as const,
+  PAISLEY_SMART_ROUTER: '0xAa4DF5c4D35Bb658cdcac78dB09D3Aa1393862b0' as const,
   WPLS: '0xA1077a294dDE1B09bB078844df40758a5D0f9a27' as const,
+} as const;
+
+// Official Platform Tokens
+export const PLATFORM_TOKENS = {
+  // wFUD - Wrapped FUD - Official Meme Rewarder Token
+  // Rewards holders with ~6 tokens including wFUD reflections
+  WFUD: '0xa59A460B9bd6Db7b167e7082Df3C9D87EeBc9825' as const,
 } as const;
 
 export const CONSTANTS = {

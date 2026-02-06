@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAccount, useReadContract, useWriteContract } from 'wagmi';
 import { parseEther } from 'viem';
-import { MessageCircle, Send, Mic, MicOff, Sparkles, ChevronDown, ChevronUp, Volume2 } from 'lucide-react';
+import { MessageCircle, Send, Mic, MicOff, Sparkles, ChevronDown, ChevronUp, Volume2, VolumeX, Radio } from 'lucide-react';
 import { SUPERCHAT_ABI, TOKEN_ABI } from '@/config/abis';
 import { CONTRACTS, CONSTANTS } from '@/config/wagmi';
 import { formatAddress, formatTimeAgo, getTierColor, getTierName } from '@/lib/utils';
@@ -17,6 +17,47 @@ interface ChatMessage {
   isSuperChat: boolean;
   tier?: number;
   amount?: bigint;
+}
+
+interface VoiceSpeaker {
+  address: `0x${string}`;
+  isSpeaking: boolean;
+  isMuted: boolean;
+}
+
+// Generate consistent avatar colors from wallet address
+function getAvatarColors(address: string): { bg: string; fg: string } {
+  const hash = address.slice(2, 10);
+  const hue = parseInt(hash.slice(0, 2), 16) * 1.4; // 0-360
+  const sat = 60 + (parseInt(hash.slice(2, 4), 16) % 30); // 60-90%
+  const light = 45 + (parseInt(hash.slice(4, 6), 16) % 15); // 45-60%
+  return {
+    bg: `hsl(${hue}, ${sat}%, ${light}%)`,
+    fg: light > 55 ? '#000' : '#fff',
+  };
+}
+
+// Avatar component
+function WalletAvatar({ address, size = 32, isSpeaking = false }: { address: string; size?: number; isSpeaking?: boolean }) {
+  const colors = getAvatarColors(address);
+  const initials = address.slice(2, 4).toUpperCase();
+
+  return (
+    <div
+      className={`rounded-full flex items-center justify-center font-mono font-bold transition-all ${
+        isSpeaking ? 'ring-2 ring-[#d6ffe0] ring-offset-2 ring-offset-black animate-pulse' : ''
+      }`}
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: colors.bg,
+        color: colors.fg,
+        fontSize: size * 0.35,
+      }}
+    >
+      {initials}
+    </div>
+  );
 }
 
 interface LiveChatProps {
@@ -34,13 +75,21 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
 
   const { address, isConnected } = useAccount();
 
-  // Check if user holds any tokens (for voice chat access)
+  // Check if user holds tokens
   const { data: tokenBalance } = useReadContract({
     address: tokenAddress,
     abi: TOKEN_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     query: { enabled: !!tokenAddress && !!address },
+  });
+
+  // Get total supply to calculate 1% threshold
+  const { data: totalSupply } = useReadContract({
+    address: tokenAddress,
+    abi: TOKEN_ABI,
+    functionName: 'totalSupply',
+    query: { enabled: !!tokenAddress },
   });
 
   // Super chat messages from contract
@@ -123,7 +172,12 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
     // In production: WebRTC voice connection
   };
 
-  const hasTokens = tokenBalance && tokenBalance > BigInt(0);
+  // User needs 1% of total supply to participate in chat
+  const onePercentThreshold = totalSupply ? (totalSupply as bigint) / 100n : 0n;
+  const hasEnoughTokens = tokenBalance && totalSupply && (tokenBalance as bigint) >= onePercentThreshold;
+  const holdingPercent = tokenBalance && totalSupply
+    ? Number((tokenBalance as bigint) * 10000n / (totalSupply as bigint)) / 100
+    : 0;
   const messages = allMessages();
 
   return (
@@ -151,35 +205,89 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
         </div>
       </div>
 
-      {/* Voice Panel (collapsible) */}
+      {/* Voice Panel (collapsible) - Telegram Live style */}
       {showVoicePanel && (
-        <div className="px-3 py-2 border-b border-[#d6ffe0]/10 bg-black/40">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono text-gray-400">Voice Chat</span>
+        <div className="px-3 py-3 border-b border-[#d6ffe0]/10 bg-gradient-to-b from-black/60 to-black/40">
+          {/* Voice Chat Header */}
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
+              <Radio size={14} className={isMicActive ? 'text-[#d6ffe0] animate-pulse' : 'text-gray-500'} />
+              <span className="text-xs font-mono text-[#d6ffe0] font-bold">VOICE CHAT</span>
+              {isMicActive && (
+                <span className="text-[9px] font-mono bg-[#d6ffe0]/20 text-[#d6ffe0] px-1.5 py-0.5 rounded">LIVE</span>
+              )}
+            </div>
+            <span className="text-[10px] font-mono text-gray-500">
+              {hasEnoughTokens ? '1%+ holder' : `${holdingPercent.toFixed(2)}%`}
+            </span>
+          </div>
+
+          {/* Your Speaker Card */}
+          {address && (
+            <div className={`flex items-center gap-3 p-2 rounded-lg mb-2 transition-all ${
+              isMicActive
+                ? 'bg-[#d6ffe0]/10 border border-[#d6ffe0]/30'
+                : 'bg-black/30 border border-gray-800'
+            }`}>
+              {/* Avatar */}
+              <WalletAvatar address={address} size={40} isSpeaking={isMicActive} />
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-mono text-white font-semibold truncate">
+                    {formatAddress(address)}
+                  </span>
+                  <span className="text-[9px] font-mono text-gray-500">(you)</span>
+                </div>
+                <span className={`text-[10px] font-mono ${isMicActive ? 'text-[#d6ffe0]' : 'text-gray-500'}`}>
+                  {isMicActive ? '🎙️ Speaking...' : hasEnoughTokens ? 'Ready to speak' : 'Need 1% to speak'}
+                </span>
+              </div>
+
+              {/* Mute/Unmute Button */}
               <button
                 onClick={toggleMic}
-                disabled={!hasTokens}
-                className={`p-2 rounded-full transition-all ${
+                disabled={!hasEnoughTokens}
+                className={`p-2.5 rounded-full transition-all ${
                   isMicActive
-                    ? 'bg-[#d6ffe0] text-black animate-pulse'
-                    : hasTokens
-                    ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    ? 'bg-[#d6ffe0] text-black shadow-lg shadow-[#d6ffe0]/30'
+                    : hasEnoughTokens
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
                     : 'bg-gray-900 text-gray-600 cursor-not-allowed'
                 }`}
-                title={hasTokens ? (isMicActive ? 'Mute' : 'Unmute') : 'Hold tokens to speak'}
+                title={hasEnoughTokens ? (isMicActive ? 'Mute' : 'Unmute') : 'Hold 1% of supply to speak'}
               >
-                {isMicActive ? <Mic size={14} /> : <MicOff size={14} />}
+                {isMicActive ? <Mic size={16} /> : <MicOff size={16} />}
               </button>
-              <span className="text-[10px] font-mono text-gray-500">
-                {isMicActive ? 'Speaking...' : hasTokens ? 'Click to talk' : 'Hold tokens to talk'}
-              </span>
             </div>
+          )}
+
+          {/* Other Active Speakers */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-mono text-gray-600 block">Active Speakers</span>
+
+            {/* Placeholder for other speakers - would be populated via WebRTC/WebSocket */}
+            <div className="text-center py-3 text-gray-600">
+              <VolumeX size={20} className="mx-auto mb-1 opacity-50" />
+              <span className="text-[10px] font-mono">No other speakers</span>
+            </div>
+
+            {/* Example of what an active speaker would look like (commented for reference)
+            <div className="flex items-center gap-2 p-1.5 rounded bg-black/20">
+              <WalletAvatar address="0x1234567890abcdef" size={28} isSpeaking={true} />
+              <span className="text-[10px] font-mono text-gray-300 flex-1 truncate">0x1234...cdef</span>
+              <div className="w-1.5 h-1.5 bg-[#d6ffe0] rounded-full animate-pulse" />
+            </div>
+            */}
           </div>
-          {/* Active speakers would show here */}
-          <div className="mt-2 flex gap-1 flex-wrap">
-            <span className="text-[10px] font-mono text-gray-600">No active speakers</span>
-          </div>
+
+          {/* Voice Chat Note */}
+          {!hasEnoughTokens && (
+            <div className="mt-2 text-[9px] font-mono text-center text-gray-500 bg-black/30 rounded py-1.5">
+              Hold 1% of token supply to join voice chat
+            </div>
+          )}
         </div>
       )}
 
@@ -248,7 +356,17 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
       {/* Input Area */}
       {tokenAddress && isConnected && (
         <div className="p-3 border-t border-[#d6ffe0]/10 space-y-2">
-          {/* Super Chat Toggle */}
+          {/* Holding Status */}
+          <div className={`text-[10px] font-mono text-center py-1 rounded ${
+            hasEnoughTokens ? 'bg-[#d6ffe0]/10 text-[#d6ffe0]' : 'bg-red-500/10 text-red-400'
+          }`}>
+            {hasEnoughTokens
+              ? `✓ Holding ${holdingPercent.toFixed(2)}% - Chat unlocked`
+              : `Hold 1% to chat (you have ${holdingPercent.toFixed(2)}%)`
+            }
+          </div>
+
+          {/* Super Chat Toggle - Always available (paid feature) */}
           <button
             onClick={() => setIsSuperChatMode(!isSuperChatMode)}
             className={`w-full flex items-center justify-between px-3 py-1.5 rounded text-xs font-mono transition-all ${
@@ -259,7 +377,7 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
           >
             <span className="flex items-center gap-1.5">
               <Sparkles size={12} />
-              {isSuperChatMode ? 'Super Chat Mode ON' : 'Enable Super Chat'}
+              {isSuperChatMode ? 'Super Chat Mode ON' : '✨ Super Chat (paid highlight)'}
             </span>
             {isSuperChatMode ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
@@ -286,20 +404,27 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
             </div>
           )}
 
-          {/* Message Input */}
+          {/* Message Input - enabled if holding 1% OR using Super Chat */}
           <div className="flex gap-2">
             <input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={isSuperChatMode ? 'Super chat message...' : 'Type a message...'}
+              onKeyPress={(e) => e.key === 'Enter' && (hasEnoughTokens || isSuperChatMode) && handleSend()}
+              placeholder={
+                !hasEnoughTokens && !isSuperChatMode
+                  ? 'Hold 1% to chat or use Super Chat...'
+                  : isSuperChatMode
+                    ? 'Super chat message...'
+                    : 'Type a message...'
+              }
               maxLength={500}
-              className="flex-1 px-3 py-2 bg-black/60 border border-[#d6ffe0]/20 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#d6ffe0]/50 transition-colors"
+              disabled={!hasEnoughTokens && !isSuperChatMode}
+              className="flex-1 px-3 py-2 bg-black/60 border border-[#d6ffe0]/20 rounded-lg font-mono text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#d6ffe0]/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button
               onClick={handleSend}
-              disabled={isPending || !message.trim()}
+              disabled={isPending || !message.trim() || (!hasEnoughTokens && !isSuperChatMode)}
               className={`px-4 py-2 rounded-lg font-mono text-sm font-bold transition-all ${
                 isSuperChatMode
                   ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-black hover:from-yellow-400 hover:to-orange-400'
@@ -310,12 +435,15 @@ export function LiveChat({ tokenAddress }: LiveChatProps) {
             </button>
           </div>
 
-          {/* Free chat note */}
-          {!isSuperChatMode && (
-            <p className="text-[10px] font-mono text-gray-600 text-center">
-              Free chat - no payment required
-            </p>
-          )}
+          {/* Info note */}
+          <p className="text-[10px] font-mono text-gray-600 text-center">
+            {isSuperChatMode
+              ? `Super Chat: ${CONSTANTS.SUPERCHAT_TIERS[selectedTier]} PLS - highlighted message`
+              : hasEnoughTokens
+                ? 'Free chat - no payment required'
+                : 'Super Chat available without holding requirement'
+            }
+          </p>
         </div>
       )}
 
