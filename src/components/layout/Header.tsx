@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
-import { Settings, User, MessageCircle } from 'lucide-react';
+import { Settings, User, MessageCircle, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useSiteSettings, isAdminWallet } from '@/stores/siteSettingsStore';
 
@@ -86,6 +86,13 @@ export function Header() {
               className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
             >
               Profile
+            </Link>
+            <Link
+              href="/fudfather"
+              className="flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition-colors font-mono text-sm font-bold"
+            >
+              <Crown size={14} />
+              FUDFATHER
             </Link>
           </nav>
         )}
