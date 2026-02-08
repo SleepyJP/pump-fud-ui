@@ -129,6 +129,15 @@ export interface SiteSettings {
   // Saved patterns/images library
   savedPatterns: { id: string; name: string; url: string; type: 'pattern' | 'image' }[];
 
+  // Meme Gallery
+  memeGallery: {
+    id: string;
+    imageUrl: string;
+    title: string;
+    caption: string;
+    date: string;
+  }[];
+
   // Hidden/deleted tokens (frontend only - for tokens we want to hide from UI)
   hiddenTokens: `0x${string}`[];
 }
@@ -177,6 +186,11 @@ interface SiteSettingsState extends SiteSettings {
   setThemeColor: (key: keyof ThemeColors, value: string) => void;
   setFullTheme: (theme: Partial<ThemeColors>) => void;
   resetTheme: () => void;
+
+  // Meme gallery
+  addMeme: (meme: { imageUrl: string; title: string; caption: string }) => void;
+  removeMeme: (id: string) => void;
+  updateMeme: (id: string, updates: Partial<{ imageUrl: string; title: string; caption: string }>) => void;
 
   // Token management
   hideToken: (address: `0x${string}`) => void;
@@ -271,6 +285,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
   accentColor: '#d6ffe0',
   secondaryAccent: '#8b5cf6',
   savedPatterns: [],
+  memeGallery: [],
   // Pre-hidden test tokens for clean launch
   hiddenTokens: [
     '0x993ff7f0bfc0a4338367342a747513bd9b014554', // NAH - Nanner's
@@ -404,6 +419,27 @@ export const useSiteSettings = create<SiteSettingsState>()(
               ad.id === id ? { ...ad, active: !ad.active } : ad
             ),
           },
+        })),
+
+      // Meme gallery
+      addMeme: (meme) =>
+        set((state) => ({
+          memeGallery: [
+            { ...meme, id: `meme-${Date.now()}`, date: new Date().toISOString().split('T')[0] },
+            ...state.memeGallery,
+          ],
+        })),
+
+      removeMeme: (id) =>
+        set((state) => ({
+          memeGallery: state.memeGallery.filter((m) => m.id !== id),
+        })),
+
+      updateMeme: (id, updates) =>
+        set((state) => ({
+          memeGallery: state.memeGallery.map((m) =>
+            m.id === id ? { ...m, ...updates } : m
+          ),
         })),
 
       // Theme setters
