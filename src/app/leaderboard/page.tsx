@@ -368,6 +368,15 @@ export default function LeaderboardPage() {
                           </p>
                           <p className="text-xs text-text-muted font-mono">Pool Contribution</p>
                         </div>
+                        <a
+                          href={`https://scan.pulsechain.com/address/${entry.address}?tab=internal_txns`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 text-text-muted hover:text-fud-green transition-colors flex-shrink-0"
+                          title="View airdrop transactions on PulseScan"
+                        >
+                          <ArrowUpRight size={16} />
+                        </a>
                       </div>
                     ))}
                   </div>
