@@ -300,6 +300,43 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* DESCRIPTION MODAL */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {showFullDescription && description && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8"
+          onClick={() => setShowFullDescription(false)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[80vh] bg-gradient-to-br from-gray-900 to-black border border-[#d6ffe0]/30 rounded-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#d6ffe0]/20 bg-black/50 flex-shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-mono text-[#d6ffe0] font-bold truncate">
+                  {(name as string) || 'Token'} {(symbol as string) ? `($${(symbol as string).replace(/^\$+/, '')})` : ''}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowFullDescription(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all flex-shrink-0"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <h3 className="text-[10px] text-gray-500 uppercase mb-2">About</h3>
+              <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
+                {description}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
       {/* MAIN CONTENT - 3 Columns */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       <div className="flex flex-1 min-h-0">
@@ -313,10 +350,16 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
             <TokenImageInfo tokenAddress={tokenAddress} />
           </div>
 
-          {/* Description - Compact */}
+          {/* Description - Clickable to expand */}
           {description && (
-            <div className="p-3 border-b border-gray-800 bg-black">
-              <h3 className="text-[10px] text-gray-500 uppercase mb-1">About</h3>
+            <div
+              className="p-3 border-b border-gray-800 bg-black cursor-pointer hover:bg-gray-900/50 transition-colors group"
+              onClick={() => setShowFullDescription(true)}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-[10px] text-gray-500 uppercase">About</h3>
+                <span className="text-[9px] text-gray-600 group-hover:text-[#d6ffe0] transition-colors">click to read</span>
+              </div>
               <p className="text-xs text-gray-300 leading-relaxed line-clamp-4">
                 {description}
               </p>
@@ -370,7 +413,7 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
                     <span className="text-[#d6ffe0]">{(name as string) || '...'}</span>
                   )}
                 </h2>
-                <span className="text-gray-400 text-xs font-mono">${(symbol as string) || '...'}</span>
+                <span className="text-gray-400 text-xs font-mono">${((symbol as string) || '...').replace(/^\$+/, '')}</span>
               </div>
               {/* Status Badge */}
               {graduated ? (
