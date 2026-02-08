@@ -680,7 +680,7 @@ export default function ProfilePage() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-text-muted text-xs font-mono">${token.symbol}</p>
+                            <p className="text-text-muted text-xs font-mono">${token.symbol.replace(/^\$+/, '')}</p>
                           </div>
                         </div>
                         <div className="text-right">
@@ -718,7 +718,7 @@ export default function ProfilePage() {
                           </div>
                           <div>
                             <p className="text-text-primary font-mono">{token.name}</p>
-                            <p className="text-text-muted text-xs font-mono">${token.symbol}</p>
+                            <p className="text-text-muted text-xs font-mono">${token.symbol.replace(/^\$+/, '')}</p>
                           </div>
                         </div>
                         <div className="text-right">

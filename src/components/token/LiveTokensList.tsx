@@ -270,7 +270,7 @@ export function LiveTokensList({ limit = 6, showTitle = true, filter = 'live' }:
                 </h3>
 
                 {/* Symbol - GIANT YELLOW */}
-                <p className="text-yellow-300 text-xl font-black font-mono tracking-wider text-center mt-1">${token.symbol}</p>
+                <p className="text-yellow-300 text-xl font-black font-mono tracking-wider text-center mt-1">${token.symbol.replace(/^\$+/, '')}</p>
 
                 {/* Badges row - centered */}
                 <div className="flex flex-wrap gap-2 mt-3 justify-center">

@@ -413,7 +413,7 @@ function TokensPageContent() {
                         <h3 className="font-display text-2xl text-yellow-300 group-hover:text-yellow-200 transition-colors truncate">
                           {kingOfTheHill.name}
                         </h3>
-                        <span className="text-yellow-400 font-mono font-bold text-lg">${kingOfTheHill.symbol}</span>
+                        <span className="text-yellow-400 font-mono font-bold text-lg">${kingOfTheHill.symbol.replace(/^\$+/, '')}</span>
                       </div>
                       <div className="flex items-center gap-4 font-mono text-sm">
                         <span className="text-text-muted">
@@ -618,7 +618,7 @@ function TokensPageContent() {
                       <h3 className="font-display text-lg text-text-primary mb-0.5 group-hover:text-fud-green transition-colors truncate">
                         {token.name}
                       </h3>
-                      <p className="text-yellow-300 text-sm font-mono font-bold mb-2">${token.symbol}</p>
+                      <p className="text-yellow-300 text-sm font-mono font-bold mb-2">${token.symbol.replace(/^\$+/, '')}</p>
 
                       {/* Activity + Reserve */}
                       <div className="flex justify-between items-center text-xs font-mono mb-2">
@@ -707,7 +707,7 @@ function TokensPageContent() {
                           <h3 className="font-display text-lg text-text-primary group-hover:text-fud-green transition-colors truncate">
                             {token.name}
                           </h3>
-                          <span className="text-yellow-300 font-mono font-bold text-sm">${token.symbol}</span>
+                          <span className="text-yellow-300 font-mono font-bold text-sm">${token.symbol.replace(/^\$+/, '')}</span>
                           {token.graduated && <Trophy size={14} className="text-fud-orange flex-shrink-0" />}
                           {token.isTaxToken && <Gift size={14} className="text-fud-purple flex-shrink-0" />}
                         </div>
