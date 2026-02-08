@@ -212,14 +212,26 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
       {/* FEE SHARING BANNER */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {showBanner && (
-        <div className="bg-gradient-to-r from-[#d6ffe0]/20 to-purple-500/20 border-b border-[#d6ffe0]/30 px-4 py-2 flex items-center justify-center gap-3">
-          <Gift size={16} className="text-[#d6ffe0]" />
-          <span className="text-sm font-mono text-white">
-            <span className="text-[#d6ffe0] font-bold">Earn 50%</span> of all trading fees — airdropped daily to token holders!
-          </span>
+        <div className="bg-gradient-to-r from-[#d6ffe0]/20 to-purple-500/20 border-b border-[#d6ffe0]/30 px-4 py-1.5 flex items-center justify-center gap-3">
+          <Gift size={14} className="text-[#d6ffe0] flex-shrink-0" />
+          <div className="flex flex-col items-center">
+            <span className="text-xs font-mono text-white">
+              <span className="text-[#d6ffe0] font-bold">Earn 50%</span> of all trading fees — airdropped daily to holders!
+            </span>
+            <span className="text-[9px] font-mono text-gray-400 tracking-wider">
+              <span className="text-[#d6ffe0] font-bold">P</span>ermissionless
+              {' '}<span className="text-[#d6ffe0] font-bold">U</span>n-Stoppable
+              {' '}<span className="text-[#d6ffe0] font-bold">M</span>eme
+              {' '}<span className="text-[#d6ffe0] font-bold">P</span>latform
+              {' · '}
+              <span className="text-[#d6ffe0] font-bold">F</span>ully Autonomous
+              {' '}<span className="text-[#d6ffe0] font-bold">U</span>tility
+              {' '}<span className="text-[#d6ffe0] font-bold">D</span>istribution
+            </span>
+          </div>
           <button
             onClick={() => setShowBanner(false)}
-            className="ml-4 text-gray-400 hover:text-white"
+            className="ml-4 text-gray-400 hover:text-white flex-shrink-0"
           >
             <X size={14} />
           </button>

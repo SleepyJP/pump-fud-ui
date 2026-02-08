@@ -27,14 +27,14 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: 'PUMP.FUD | Gamified MemeCoin LaunchPad',
+  title: 'PUMP.FUD | Permissionless Un-Stoppable Meme Platform',
   description:
-    'Gamified MemeCoin LaunchPad on PulseChain... More To Follow. Fair launches with bonding curves.',
-  keywords: ['PulseChain', 'memecoin', 'launchpad', 'bonding curve', 'DeFi', 'PUMP.FUD'],
+    'PUMP.FUD — Permissionless Un-Stoppable Meme Platform. Fully Autonomous Utility Distribution. Fair launches with bonding curves on PulseChain. First the FUD... Then they FOMO. We MAKE Memes.',
+  keywords: ['PulseChain', 'memecoin', 'launchpad', 'bonding curve', 'DeFi', 'PUMP.FUD', 'meme platform', 'permissionless'],
   metadataBase: new URL('https://pump-fud-ui.vercel.app'),
   openGraph: {
-    title: 'PUMP.FUD | Gamified MemeCoin LaunchPad',
-    description: 'Gamified MemeCoin LaunchPad on PulseChain... More To Follow. Fair launches with bonding curves.',
+    title: 'PUMP.FUD | Permissionless Un-Stoppable Meme Platform',
+    description: 'PUMP.FUD — Permissionless Un-Stoppable Meme Platform. Fully Autonomous Utility Distribution. First the FUD... Then they FOMO. We MAKE Memes.',
     url: 'https://pump-fud-ui.vercel.app/?ref=31B8F9A8',
     siteName: 'PUMP.FUD',
     images: [
@@ -50,8 +50,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'PUMP.FUD | Gamified MemeCoin LaunchPad',
-    description: 'Gamified MemeCoin LaunchPad on PulseChain... More To Follow. Fair launches with bonding curves.',
+    title: 'PUMP.FUD | Permissionless Un-Stoppable Meme Platform',
+    description: 'PUMP.FUD — Permissionless Un-Stoppable Meme Platform. Fully Autonomous Utility Distribution. First the FUD... Then they FOMO. We MAKE Memes.',
     site: '@PUMPFUDPLS',
     creator: '@PUMPFUDPLS',
     images: ['/pump-fud-share.jpg'],

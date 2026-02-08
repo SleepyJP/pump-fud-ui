@@ -14,8 +14,16 @@ export function Footer() {
               </div>
               <span className="font-display text-fud-green text-sm">PUMP.FUD</span>
             </div>
-            <p className="text-text-muted text-[10px] font-mono leading-relaxed">
-              Gamified MemeCoin Launch Pad on PulseChain. Fair launches with bonding curves.
+            <p className="text-[10px] font-mono leading-relaxed mt-1">
+              <span className="text-fud-green font-bold">P</span><span className="text-text-muted">ermissionless </span>
+              <span className="text-fud-green font-bold">U</span><span className="text-text-muted">n-Stoppable </span>
+              <span className="text-fud-green font-bold">M</span><span className="text-text-muted">eme </span>
+              <span className="text-fud-green font-bold">P</span><span className="text-text-muted">latform</span>
+            </p>
+            <p className="text-[10px] font-mono leading-relaxed">
+              <span className="text-fud-green font-bold">F</span><span className="text-text-muted">ully Autonomous </span>
+              <span className="text-fud-green font-bold">U</span><span className="text-text-muted">tility </span>
+              <span className="text-fud-green font-bold">D</span><span className="text-text-muted">istribution</span>
             </p>
           </div>
 
@@ -72,7 +80,7 @@ export function Footer() {
 
         <div className="mt-4 pt-4 border-t border-border-primary flex justify-center items-center">
           <p className="text-text-muted text-[10px] font-mono">
-            © 2026 PUMP.FUD
+            © 2026 PUMP.FUD — PUMP Heavy .FUD Light — First the FUD... Then they FOMO. We MAKE Memes.
           </p>
         </div>
       </div>
