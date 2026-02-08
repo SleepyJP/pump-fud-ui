@@ -236,7 +236,7 @@ export default function FudfatherPage() {
                 <div>
                   <span className="text-white font-bold text-sm">{fudfather.token.name}</span>
                   <span className="text-yellow-400 font-mono text-xs ml-2">
-                    ${fudfather.token.symbol.replace(/^\$+/, '')}
+                    {'$' + fudfather.token.symbol.replace(/^\$+/, '')}
                   </span>
                 </div>
               </div>

@@ -237,7 +237,7 @@ export function TokenManagement() {
                       {token.name}
                     </span>
                     <span className="text-text-muted font-mono text-xs">
-                      ${token.symbol.replace(/^\$+/, '')}
+                      {'$' + token.symbol.replace(/^\$+/, '')}
                     </span>
                     <span className={`px-1.5 py-0.5 text-xs font-mono rounded ${statusInfo.color}`}>
                       {statusInfo.label}

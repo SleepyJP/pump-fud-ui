@@ -76,6 +76,12 @@ export function Header() {
               Tokens
             </Link>
             <Link
+              href="/wfud"
+              className="text-fud-purple hover:text-fud-purple/80 transition-colors font-mono text-sm font-bold"
+            >
+              wFUD
+            </Link>
+            <Link
               href="/leaderboard"
               className="text-text-secondary hover:text-fud-green transition-colors font-mono text-sm"
             >

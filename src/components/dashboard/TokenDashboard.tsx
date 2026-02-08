@@ -4,7 +4,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useReadContract, useAccount } from 'wagmi';
 import { TOKEN_ABI } from '@/config/abis';
 import { CONSTANTS } from '@/config/wagmi';
-import { X, Gift, Flame, Copy, Check, ExternalLink, Twitter, Send, Globe, MessageCircle, Clipboard, Maximize2, Minimize2, BarChart3 } from 'lucide-react';
+import { X, Gift, Flame, Copy, Check, ExternalLink, Twitter, Send, Globe, MessageCircle, Clipboard, Maximize2, Minimize2, BarChart3, ChevronRight } from 'lucide-react';
+
+/** Always returns symbol with exactly one leading $. If symbol already has $, don't double it. */
+function displaySymbol(raw: string | undefined): string {
+  if (!raw) return '$...';
+  const stripped = raw.replace(/^\$+/, '');
+  return '$' + stripped;
+}
 
 // Component imports
 import { TokenImageInfo } from './TokenImageInfo';
@@ -315,7 +322,7 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#d6ffe0]/20 bg-black/50 flex-shrink-0">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="font-mono text-[#d6ffe0] font-bold truncate">
-                  {(name as string) || 'Token'} {(symbol as string) ? `($${(symbol as string).replace(/^\$+/, '')})` : ''}
+                  {(name as string) || 'Token'} {(symbol as string) ? `(${displaySymbol(symbol as string)})` : ''}
                 </span>
               </div>
               <button
@@ -353,16 +360,19 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
           {/* Description - Clickable to expand */}
           {description && (
             <div
-              className="p-3 border-b border-gray-800 bg-black cursor-pointer hover:bg-gray-900/50 transition-colors group"
+              className="p-3 border-b border-gray-800 bg-black cursor-pointer hover:bg-[#d6ffe0]/5 transition-colors group"
               onClick={() => setShowFullDescription(true)}
             >
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-[10px] text-gray-500 uppercase">About</h3>
-                <span className="text-[9px] text-gray-600 group-hover:text-[#d6ffe0] transition-colors">click to read</span>
               </div>
-              <p className="text-xs text-gray-300 leading-relaxed line-clamp-4">
+              <p className="text-xs text-gray-300 leading-relaxed line-clamp-3">
                 {description}
               </p>
+              <div className="flex items-center gap-1 mt-2 text-[#d6ffe0] text-[11px] font-mono font-bold opacity-80 group-hover:opacity-100 transition-opacity">
+                <span>Read more</span>
+                <ChevronRight size={12} />
+              </div>
             </div>
           )}
 
@@ -413,7 +423,7 @@ export function TokenDashboard({ tokenAddress }: TokenDashboardProps) {
                     <span className="text-[#d6ffe0]">{(name as string) || '...'}</span>
                   )}
                 </h2>
-                <span className="text-gray-400 text-xs font-mono">${((symbol as string) || '...').replace(/^\$+/, '')}</span>
+                <span className="text-gray-400 text-xs font-mono">{displaySymbol(symbol as string)}</span>
               </div>
               {/* Status Badge */}
               {graduated ? (
